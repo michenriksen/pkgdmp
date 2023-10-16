@@ -5,9 +5,11 @@
 </div>
 <br />
 <br />
-<br />
 
 `pkgdmp` is a simple command-line tool for analyzing directories containing Go code. It provides an overview of functions, structs, methods, function types, and interfaces defined in the packages within those directories.
+
+> **Note**
+> Please be aware that this project is a work in progress, and it may contain bugs or unexpected behavior. Additionally, both the CLI and the package API can get breaking changes while the version is below 1.0.0
 
 **Features:**
 
@@ -16,8 +18,10 @@
 - Multiple syntax highlighting themes
 - JSON output generation
 
-> **Note**
-> Please be aware that this project is a work in progress, and it may contain bugs or unexpected behavior. Additionally, both the CLI and the package API can change.
+**Todo:**
+
+- [ ] Implement parsing and printing of `const` types.
+- [ ] Implement parsing and printing of `var` types.
 
 ## Usage
 
