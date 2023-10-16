@@ -16,6 +16,9 @@
 - Multiple syntax highlighting themes
 - JSON output generation
 
+> **Note**
+> Please be aware that this project is a work in progress, and it may contain bugs or unexpected behavior. Additionally, both the CLI and the package API can change.
+
 ## Usage
 
 ```console
