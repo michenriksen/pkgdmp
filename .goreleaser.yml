@@ -1,0 +1,77 @@
+---
+project_name: pkgdmp
+report_sizes: true
+before:
+  hooks:
+    - make clean
+builds:
+  - main: ./cmd/pkgdmp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    goarm:
+      - 6
+      - 7
+    ignore:
+      - goos: darwin
+        goarch: arm64
+        goarm: 6
+      - goos: darwin
+        goarch: arm64
+        goarm: 7
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - "-trimpath"
+    asmflags:
+      - "all=-trimpath={{ .Env.GOPATH }}"
+    gcflags:
+      - "all=-trimpath={{ .Env.GOPATH }}"
+    ldflags:
+      - "-s -w"
+      - "-X github.com/michenriksen/pkgdmp/internal/cli.buildVersion={{ .Version }}"
+      - "-X github.com/michenriksen/pkgdmp/internal/cli.buildCommit={{ .FullCommit }}"
+      - "-X github.com/michenriksen/pkgdmp/internal/cli.buildTime={{ .Date }}"
+      - "-X github.com/michenriksen/pkgdmp/internal/cli.buildGoVersion={{ .Env.GO_VERSION }}"
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_ {{- title .Os }}_ {{- if eq .Arch "amd64" }}x86_64 {{- else if eq .Arch "386" }}i386 {{- else }}{{
+      .Arch }}{{ end }} {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+    rlcp: true
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^chore"
+      - "^docs"
+      - "^test"
+      - "^ci"
+      - "^build"
+      - "merge conflict"
+      - "Merge pull request"
+      - "Merge remote-tracking branch"
+      - "Merge branch"
+release:
+  draft: true
+  replace_existing_draft: true
+# The lines beneath this are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj

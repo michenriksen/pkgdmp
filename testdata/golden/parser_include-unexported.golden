@@ -1,0 +1,45 @@
+package mypackage
+
+// MyFunctionType is a function type that takes two integers and returns a
+// boolean.
+type MyFunctionType func(int, int) bool
+
+// MyStruct is a struct with exported and unexported fields.
+type MyStruct struct {
+	ExportedField                      int    // exported field.
+	unexportedField                    string // unexported field.
+	unexportedField1, unexportedField2 int    // unexported shorthand fields.
+}
+
+// MyMethod is a method associated with MyStruct.
+func (s MyStruct) MyMethod()
+
+// myUnexportedMethod is an example unexported method.
+func (s MyStruct) myUnexportedMethod(a, b string) string
+
+// MyFunction is an example function that takes two integers as input and
+// returns a boolean result.
+func MyFunction(a, b int) bool
+
+// MyOtherFunction is an exported function that does not match
+// [MyFunctionType].
+func MyOtherFunction(s string, cb func(string) bool) bool
+
+// myUnexportedFunction is an unexported function.
+func myUnexportedFunction(a string, b int) string
+
+// MyThirdFunction returns a function type.
+func MyThirdFunction() MyFunctionType
+
+// NewMyStruct is an example constructor function for [MyStruct]
+func NewMyStruct(n int) (*MyStruct, error)
+
+// MyInterface is an interface with a single method.
+type MyInterface interface {
+	MyMethod() error
+}
+
+// myUnexportedInterface is an unexported interface.
+type myUnexportedInterface interface {
+	AnotherMethod(string, int, MyFunctionType) (n int, err error)
+}

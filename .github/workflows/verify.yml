@@ -1,0 +1,42 @@
+---
+name: Verify
+permissions:
+  contents: read
+on:
+  push:
+    branches: [main]
+    paths:
+      - "go.mod"
+      - "**/*.go"
+  pull_request:
+    branches: [main]
+    paths:
+      - "go.mod"
+      - "**/*.go"
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_call:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: true
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          cache-dependency-path: "go.sum"
+          go-version: "1.21"
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2
+      - name: Run make verify
+        run: make verify
