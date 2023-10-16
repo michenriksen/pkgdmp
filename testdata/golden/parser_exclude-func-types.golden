@@ -1,0 +1,28 @@
+package mypackage
+
+// MyStruct is a struct with exported and unexported fields.
+type MyStruct struct {
+	ExportedField int // exported field.
+}
+
+// MyMethod is a method associated with MyStruct.
+func (s MyStruct) MyMethod()
+
+// MyFunction is an example function that takes two integers as input and
+// returns a boolean result.
+func MyFunction(a, b int) bool
+
+// MyOtherFunction is an exported function that does not match
+// [MyFunctionType].
+func MyOtherFunction(s string, cb func(string) bool) bool
+
+// MyThirdFunction returns a function type.
+func MyThirdFunction() MyFunctionType
+
+// NewMyStruct is an example constructor function for [MyStruct]
+func NewMyStruct(n int) (*MyStruct, error)
+
+// MyInterface is an interface with a single method.
+type MyInterface interface {
+	MyMethod() error
+}

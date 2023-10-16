@@ -1,0 +1,50 @@
+---
+name: Release
+permissions:
+  contents: write
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., v1.0.0)"
+        required: true
+jobs:
+  run:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - run: git fetch --force --tags
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          cache-dependency-path: "go.sum"
+          go-version: "1.21"
+      - run: echo "GO_VERSION=$(go env GOVERSION)" >> "$GITHUB_ENV"
+      - name: Create release tag
+        run: |
+          git config --global user.email "mchnrksn@gmail.com"
+          git config --global user.name "Michael Henriksen"
+          git tag -a "$VERSION" -m "$VERSION"
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          APP_NAME: pkgdmp
+          VERSION: ${{ github.event.inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOPATH: ${{ github.workspace }}/go
+      - name: Notify Go proxy about new release
+        run: go list -m "github.com/michenriksen/pkgdmp@${VERSION}" || true
+        env:
+          GOPROXY: proxy.golang.org
+          VERSION: ${{ github.event.inputs.version }}

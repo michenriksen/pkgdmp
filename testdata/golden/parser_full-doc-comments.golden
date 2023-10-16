@@ -1,0 +1,50 @@
+package mypackage
+
+// MyFunctionType is a function type that takes two integers and returns a
+// boolean.
+type MyFunctionType func(int, int) bool
+
+// MyStruct is a struct with exported and unexported fields.
+type MyStruct struct {
+	ExportedField int // exported field.
+}
+
+// MyMethod is a method associated with MyStruct.
+func (s MyStruct) MyMethod()
+
+// MyFunction is an example function that takes two integers as input and
+// returns a boolean result. It compares the values of the input integers
+// and returns true if they are equal, indicating a successful comparison.
+// Otherwise, it returns false to indicate that the integers are not equal.
+//
+// This function serves as a simple equality checker and is often used to
+// demonstrate the usage of function types in Go.
+//
+// Example usage:
+//
+//	result := MyFunction(5, 5) // result will be true
+//	result := MyFunction(10, 20) // result will be false
+//
+// Parameters:
+//
+//	a: The first integer to compare.
+//	b: The second integer to compare.
+//
+// Returns:
+//
+//	true if the integers are equal, false otherwise.
+func MyFunction(a, b int) bool
+
+// MyOtherFunction is an exported function that does not match [MyFunctionType].
+func MyOtherFunction(s string, cb func(string) bool) bool
+
+// MyThirdFunction returns a function type.
+func MyThirdFunction() MyFunctionType
+
+// NewMyStruct is an example constructor function for [MyStruct]
+func NewMyStruct(n int) (*MyStruct, error)
+
+// MyInterface is an interface with a single method.
+type MyInterface interface {
+	MyMethod() error
+}

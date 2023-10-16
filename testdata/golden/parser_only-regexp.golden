@@ -1,0 +1,9 @@
+package mypackage
+
+// MyFunction is an example function that takes two integers as input and
+// returns a boolean result.
+func MyFunction(a, b int) bool
+
+// MyOtherFunction is an exported function that does not match
+// [MyFunctionType].
+func MyOtherFunction(s string, cb func(string) bool) bool
