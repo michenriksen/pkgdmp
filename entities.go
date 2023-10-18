@@ -26,25 +26,32 @@ func (p *Package) Source() (string, error) {
 	return string(formatted), nil
 }
 
+// Print writes unformatted package code to writer.
+func (p *Package) Print(w io.Writer) {
+	if p.Doc != "" {
+		fmt.Fprint(w, mkComment(p.Doc))
+	}
+
+	fmt.Fprintf(w, "package %s", p.Name)
+
+	for _, t := range p.Types {
+		fmt.Fprint(w, "\n\n")
+		t.Print(w)
+	}
+
+	for _, f := range p.Funcs {
+		fmt.Fprint(w, "\n\n")
+		f.Print(w)
+	}
+
+	fmt.Fprint(w, "\n")
+}
+
 // String returns the unformatted package signature source.
 func (p *Package) String() string {
 	var b strings.Builder
 
-	if p.Doc != "" {
-		b.WriteString(mkComment(p.Doc))
-	}
-
-	fmt.Fprintf(&b, "package %s", p.Name)
-
-	for _, t := range p.Types {
-		fmt.Fprintf(&b, "\n\n%s", t)
-	}
-
-	for _, f := range p.Funcs {
-		fmt.Fprintf(&b, "\n\n%s", f)
-	}
-
-	b.WriteString("\n")
+	p.Print(&b)
 
 	return b.String()
 }
@@ -71,27 +78,34 @@ func (f Func) IsExported() bool {
 	return isExportedIdent(f.Name)
 }
 
+// Print writes unformatted function signature code to writer.
+func (f Func) Print(w io.Writer) {
+	if f.Doc != "" {
+		fmt.Fprint(w, mkComment(f.Doc))
+	}
+
+	if f.funcKw {
+		fmt.Fprint(w, "func ")
+	}
+
+	if f.Receiver != nil {
+		fmt.Fprint(w, "(")
+		f.Receiver.Print(w)
+		fmt.Fprint(w, ") ")
+	}
+
+	fmt.Fprintf(w, "%s(%s) %s", f.Name, fieldsList(f.Params), resultsList(f.Results))
+
+	if f.Comment != "" {
+		fmt.Fprintf(w, " // %s", f.Comment)
+	}
+}
+
 // String returns the function signature code.
 func (f Func) String() string {
 	var b strings.Builder
 
-	if f.Doc != "" {
-		b.WriteString(mkComment(f.Doc))
-	}
-
-	if f.funcKw {
-		b.WriteString("func ")
-	}
-
-	if f.Receiver != nil {
-		fmt.Fprintf(&b, "(%s) ", f.Receiver)
-	}
-
-	fmt.Fprintf(&b, "%s(%s) %s", f.Name, fieldsList(f.Params), resultsList(f.Results))
-
-	if f.Comment != "" {
-		fmt.Fprintf(&b, " // %s", f.Comment)
-	}
+	f.Print(&b)
 
 	return b.String()
 }
@@ -122,34 +136,40 @@ func (td TypeDef) IsExported() bool {
 	return isExportedIdent(td.Name)
 }
 
+// Print writes unformatted type definition code to writer.
+func (td TypeDef) Print(w io.Writer) {
+	switch td.Type {
+	case "struct":
+		printStructType(w, td)
+	case "interface":
+		printInterfaceType(w, td)
+	case "func":
+		printFuncType(w, td)
+	case "map":
+		printMapType(w, td)
+	case "chan":
+		printChanType(w, td)
+	case "array":
+		printArrayType(w, td)
+	default:
+		if td.Doc != "" {
+			fmt.Fprint(w, mkComment(td.Doc))
+		}
+
+		fmt.Fprintf(w, "type %s %s", td.Name, td.Type)
+
+		for _, m := range td.Methods {
+			fmt.Fprint(w, "\n\n")
+			m.Print(w)
+		}
+	}
+}
+
 // String returns the type definition code.
 func (td TypeDef) String() string {
 	var b strings.Builder
 
-	switch td.Type {
-	case "struct":
-		printStructType(&b, td)
-	case "interface":
-		printInterfaceType(&b, td)
-	case "func":
-		printFuncType(&b, td)
-	case "map":
-		printMapType(&b, td)
-	case "chan":
-		printChanType(&b, td)
-	case "array":
-		printArrayType(&b, td)
-	default:
-		if td.Doc != "" {
-			b.WriteString(mkComment(td.Doc))
-		}
-
-		fmt.Fprintf(&b, "type %s %s", td.Name, td.Type)
-
-		for _, m := range td.Methods {
-			fmt.Fprintf(&b, "\n\n%s", m)
-		}
-	}
+	td.Print(&b)
 
 	return b.String()
 }
@@ -172,19 +192,24 @@ func (sf Field) IsExported() bool {
 	return isExportedIdent(sf.Names[0])
 }
 
-// String returns the unformatted struct field code fragment.
+// Print writes unformatted field code fragment to writer.
+func (sf Field) Print(w io.Writer) {
+	if sf.Doc != "" {
+		fmt.Fprint(w, mkComment(sf.Doc))
+	}
+
+	fmt.Fprintf(w, "%s %s", strings.Join(sf.Names, ", "), sf.Type)
+
+	if sf.Comment != "" {
+		fmt.Fprintf(w, " // %s", sf.Comment)
+	}
+}
+
+// String returns the unformatted field code fragment.
 func (sf Field) String() string {
 	var b strings.Builder
 
-	if sf.Doc != "" {
-		b.WriteString(mkComment(sf.Doc))
-	}
-
-	fmt.Fprintf(&b, "%s %s", strings.Join(sf.Names, ", "), sf.Type)
-
-	if sf.Comment != "" {
-		fmt.Fprintf(&b, " // %s", sf.Comment)
-	}
+	sf.Print(&b)
 
 	return b.String()
 }
@@ -200,7 +225,8 @@ func printStructType(w io.Writer, s TypeDef) {
 		fmt.Fprint(w, "\n")
 
 		for _, f := range s.Fields {
-			fmt.Fprintf(w, "    %s\n", f)
+			f.Print(w)
+			fmt.Fprint(w, "\n")
 		}
 	}
 
@@ -211,7 +237,8 @@ func printStructType(w io.Writer, s TypeDef) {
 	}
 
 	for _, fn := range s.Methods {
-		fmt.Fprintf(w, "\n\n%s", fn)
+		fmt.Fprint(w, "\n\n")
+		fn.Print(w)
 	}
 }
 
