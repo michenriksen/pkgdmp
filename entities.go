@@ -4,16 +4,8 @@ import (
 	"fmt"
 	"go/format"
 	"io"
-	"sort"
 	"strings"
 )
-
-// Identifier represents a program entity such as a function, struct, method,
-// interface, etc. that can be exported by a package or kept private.
-type Identifier interface {
-	Ident() string
-	IsExported() bool
-}
 
 // Package represents a go package containing functions and types such as
 // structs and interfaces.
@@ -24,14 +16,8 @@ type Package struct {
 	Types []TypeDef `json:"types"`
 }
 
-// OrderIdents arranges package entities, sorting them first by whether they are
-// exported or unexported, and then alphabetically.
-func (p Package) OrderIdents() {
-	p.orderFuncs()
-}
-
 // Source returns the formatted package signature source.
-func (p Package) Source() (string, error) {
+func (p *Package) Source() (string, error) {
 	formatted, err := format.Source([]byte(p.String()))
 	if err != nil {
 		return "", fmt.Errorf("formatting source: %w", err)
@@ -41,7 +27,7 @@ func (p Package) Source() (string, error) {
 }
 
 // String returns the unformatted package signature source.
-func (p Package) String() string {
+func (p *Package) String() string {
 	var b strings.Builder
 
 	if p.Doc != "" {
@@ -63,17 +49,6 @@ func (p Package) String() string {
 	return b.String()
 }
 
-func (p Package) orderFuncs() {
-	sortFn := func(i, j int) bool {
-		funcI := p.Funcs[i]
-		funcJ := p.Funcs[j]
-
-		return funcI.Less(funcJ)
-	}
-
-	sort.SliceStable(p.Funcs, sortFn)
-}
-
 // Func represents a function or a struct method if the Receiver field contains
 // a pointer to a [FuncReceiver].
 type Func struct {
@@ -87,28 +62,13 @@ type Func struct {
 }
 
 // Ident returns the function's name.
-//
-// Part of the [Identifier] interface implementation.
 func (f Func) Ident() string {
 	return f.Name
 }
 
 // IsExported returns true if the function is exported.
-//
-// Part of the [Identifier] interface implementation.
 func (f Func) IsExported() bool {
 	return isExportedIdent(f.Name)
-}
-
-// Less returns true if Func must sort before other Func.
-func (f Func) Less(other Func) bool {
-	if f.IsExported() && !other.IsExported() {
-		return true
-	} else if !f.IsExported() && other.IsExported() {
-		return false
-	}
-
-	return f.Ident() > other.Ident()
 }
 
 // String returns the function signature code.
@@ -136,6 +96,7 @@ func (f Func) String() string {
 	return b.String()
 }
 
+// TypeDef represents a type definition.
 type TypeDef struct {
 	Type    string  `json:"type"`
 	Name    string  `json:"name"`
@@ -151,6 +112,17 @@ type TypeDef struct {
 	Methods []Func  `json:"methods,omitempty"`
 }
 
+// Ident returns the type definition's name.
+func (td TypeDef) Ident() string {
+	return td.Name
+}
+
+// IsExported returns true if the type definition is exported.
+func (td TypeDef) IsExported() bool {
+	return isExportedIdent(td.Name)
+}
+
+// String returns the type definition code.
 func (td TypeDef) String() string {
 	var b strings.Builder
 
@@ -191,15 +163,11 @@ type Field struct {
 }
 
 // Ident returns the name of the struct field.
-//
-// Part of the [Identifier] interface implementation.
 func (sf Field) Ident() string {
 	return sf.Names[0]
 }
 
 // IsExported returns true if the struct field is exported.
-//
-// Part of the [Identifier] interface implementation.
 func (sf Field) IsExported() bool {
 	return isExportedIdent(sf.Names[0])
 }

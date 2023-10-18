@@ -199,7 +199,7 @@ func (tc *parserTestCase) pkgDoc(tb testing.TB) *doc.Package {
 	return doc.New(pkg, "", doc.AllDecls)
 }
 
-func (tc *parserTestCase) compareGolden(tb testing.TB, pkg pkgdmp.Package) {
+func (tc *parserTestCase) compareGolden(tb testing.TB, pkg *pkgdmp.Package) {
 	tb.Helper()
 
 	actual, err := pkg.Source()

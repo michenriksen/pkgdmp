@@ -33,18 +33,18 @@ func NewParser(opts ParserOptions) *Parser {
 }
 
 // Package parses dPkg to a simplified [Package].
-func (p *Parser) Package(dPkg *doc.Package) (Package, error) {
-	pkg := Package{
+func (p *Parser) Package(dPkg *doc.Package) (*Package, error) {
+	pkg := &Package{
 		Name: dPkg.Name,
 		Doc:  p.mkDoc(dPkg.Doc),
 	}
 
-	if err := p.parseFuncs(&pkg, dPkg.Funcs); err != nil {
-		return Package{}, fmt.Errorf("parsing functions: %w", err)
+	if err := p.parseFuncs(pkg, dPkg.Funcs); err != nil {
+		return nil, fmt.Errorf("parsing functions: %w", err)
 	}
 
-	if err := p.parseTypes(&pkg, dPkg.Types); err != nil {
-		return Package{}, fmt.Errorf("parsing types: %w", err)
+	if err := p.parseTypes(pkg, dPkg.Types); err != nil {
+		return nil, fmt.Errorf("parsing types: %w", err)
 	}
 
 	return pkg, nil

@@ -36,7 +36,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	parsed := make([]pkgdmp.Package, 0, len(unparsed))
+	parsed := make([]*pkgdmp.Package, 0, len(unparsed))
 
 	for _, uPkg := range unparsed {
 		pkg, err := pkgParser.Package(doc.New(uPkg, "", doc.AllDecls))
@@ -73,7 +73,7 @@ func getPackages(dirs []string) ([]*ast.Package, error) {
 	return all, nil
 }
 
-func printPackages(pkgs []pkgdmp.Package, cfg *cli.Config) error {
+func printPackages(pkgs []*pkgdmp.Package, cfg *cli.Config) error {
 	if cfg.JSON {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
