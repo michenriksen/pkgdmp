@@ -78,9 +78,25 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				continue
 			}
 
+			if !p.includeType(typeSpec) {
+				continue
+			}
+
 			td := TypeDef{
 				Name: t.Name,
 				Doc:  p.mkDoc(t.Doc),
+			}
+
+			if err := p.parseFuncs(pkg, t.Funcs); err != nil {
+				return fmt.Errorf("parsing functions for %s type: %w", t.Name, err)
+			}
+
+			for _, m := range t.Methods {
+				if !p.includeMethod(m.Name) {
+					continue
+				}
+
+				td.Methods = append(td.Methods, p.parseFunc(m))
 			}
 
 			switch ts := typeSpec.Type.(type) {
@@ -88,11 +104,11 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				td.Type = ts.Name
 			case *ast.StructType:
 				td.Type = "struct"
-				td.Fields = p.parseFieldList(ts.Fields)
+				td.Fields = p.parseStructFieldList(ts.Fields)
 			case *ast.InterfaceType:
 				td.Type = "interface"
 
-				if t.Methods != nil {
+				if ts.Methods != nil {
 					for _, m := range ts.Methods.List {
 						ft, ok := m.Type.(*ast.FuncType)
 						if !ok {
@@ -146,18 +162,6 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				continue
 			}
 
-			if err := p.parseFuncs(pkg, t.Funcs); err != nil {
-				return fmt.Errorf("parsing functions for %s type: %w", t.Name, err)
-			}
-
-			for _, m := range t.Methods {
-				if !p.includeMethod(m.Name) {
-					continue
-				}
-
-				td.Methods = append(td.Methods, p.parseFunc(m))
-			}
-
 			pkg.Types = append(pkg.Types, td)
 		}
 	}
@@ -204,6 +208,24 @@ func (p *Parser) parseFieldList(fl *ast.FieldList) []Field {
 	return res
 }
 
+func (p *Parser) parseStructFieldList(fl *ast.FieldList) []Field {
+	if fl == nil {
+		return nil
+	}
+
+	res := make([]Field, 0, len(fl.List))
+
+	for _, f := range fl.List {
+		if !p.includeStructField(f.Names[0].Name) {
+			continue
+		}
+
+		res = append(res, p.parseField(f))
+	}
+
+	return res
+}
+
 func (p *Parser) parseField(af *ast.Field) Field {
 	f := Field{
 		Names: identNames(af.Names),
@@ -230,11 +252,28 @@ func (p *Parser) includeIdent(name string) bool {
 		(p.opts.ExcludeRegexp == nil || !p.opts.ExcludeRegexp.MatchString(name))
 }
 
+func (p *Parser) includeType(at *ast.TypeSpec) bool {
+	if !p.includeIdent(at.Name.Name) {
+		return false
+	}
+
+	switch at.Type.(type) {
+	case *ast.StructType:
+		return !p.opts.ExcludeStructs
+	case *ast.FuncType:
+		return !p.opts.ExcludeFuncTypes
+	case *ast.InterfaceType:
+		return !p.opts.ExcludeInterfaces
+	default:
+		return true
+	}
+}
+
 func (p *Parser) includeMethod(name string) bool {
 	return isExportedIdent(name) || p.opts.Unexported
 }
 
-func (p *Parser) includeField(name string) bool {
+func (p *Parser) includeStructField(name string) bool {
 	return isExportedIdent(name) || p.opts.Unexported
 }
 
