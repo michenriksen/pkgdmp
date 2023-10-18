@@ -1,8 +1,16 @@
 package mypackage
 
+// MyExportedType is an exported custom type.
+type MyExportedType int
+
 // MyFunctionType is a function type that takes two integers and returns a
 // boolean.
 type MyFunctionType func(int, int) bool
+
+// MyInterface is an interface with a single method.
+type MyInterface interface {
+	MyMethod() error
+}
 
 // MyStruct is a struct with exported and unexported fields.
 type MyStruct struct {
@@ -11,8 +19,3 @@ type MyStruct struct {
 
 // MyMethod is a method associated with MyStruct.
 func (s MyStruct) MyMethod()
-
-// MyInterface is an interface with a single method.
-type MyInterface interface {
-	MyMethod() error
-}

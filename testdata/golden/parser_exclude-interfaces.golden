@@ -1,5 +1,8 @@
 package mypackage
 
+// MyExportedType is an exported custom type.
+type MyExportedType int
+
 // MyFunctionType is a function type that takes two integers and returns a
 // boolean.
 type MyFunctionType func(int, int) bool

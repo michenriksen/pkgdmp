@@ -1,6 +1,12 @@
 package mypackage
 
+type MyExportedType int
+
 type MyFunctionType func(int, int) bool
+
+type MyInterface interface {
+	MyMethod() error
+}
 
 type MyStruct struct {
 	ExportedField int
@@ -15,7 +21,3 @@ func MyOtherFunction(s string, cb func(string) bool) bool
 func MyThirdFunction() MyFunctionType
 
 func NewMyStruct(n int) (*MyStruct, error)
-
-type MyInterface interface {
-	MyMethod() error
-}

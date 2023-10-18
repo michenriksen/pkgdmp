@@ -1,5 +1,13 @@
 package mypackage
 
+// MyExportedType is an exported custom type.
+type MyExportedType int
+
+// MyInterface is an interface with a single method.
+type MyInterface interface {
+	MyMethod() error
+}
+
 // MyStruct is a struct with exported and unexported fields.
 type MyStruct struct {
 	ExportedField int // exported field.
@@ -16,13 +24,5 @@ func MyFunction(a, b int) bool
 // [MyFunctionType].
 func MyOtherFunction(s string, cb func(string) bool) bool
 
-// MyThirdFunction returns a function type.
-func MyThirdFunction() MyFunctionType
-
 // NewMyStruct is an example constructor function for [MyStruct]
 func NewMyStruct(n int) (*MyStruct, error)
-
-// MyInterface is an interface with a single method.
-type MyInterface interface {
-	MyMethod() error
-}
