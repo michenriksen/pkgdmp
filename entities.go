@@ -183,13 +183,13 @@ func (f Func) String() string {
 // FuncReceiver represents a function receiver.
 type FuncReceiver struct {
 	Name string `json:"name"`
-	Type Type   `json:"type"`
+	Type string `json:"type"`
 }
 
 // String returns the function receiver code fragment.
 func (fr FuncReceiver) String() string {
 	if fr.Name == "" {
-		return fr.Type.String()
+		return fr.Type
 	}
 
 	return fmt.Sprintf("%s %s", fr.Name, fr.Type)
@@ -197,32 +197,32 @@ func (fr FuncReceiver) String() string {
 
 // FuncParam represents a function parameter.
 type FuncParam struct {
-	Type  Type     `json:"type"`
+	Type  string   `json:"type"`
 	Names []string `json:"names"`
 }
 
 // String returns the function parameter code fragment.
 func (fp FuncParam) String() string {
 	if len(fp.Names) == 0 {
-		return fp.Type.String()
+		return fp.Type
 	}
 
-	return fmt.Sprintf("%s %s", namesList(fp.Names), fp.Type)
+	return fmt.Sprintf("%s %s", strings.Join(fp.Names, ", "), fp.Type)
 }
 
 // FuncResult represents a function result (return value).
 type FuncResult struct {
-	Type  Type     `json:"type"`
+	Type  string   `json:"type"`
 	Names []string `json:"names"`
 }
 
 // String returns the function result code fragment.
 func (fr FuncResult) String() string {
 	if len(fr.Names) == 0 {
-		return fr.Type.String()
+		return fr.Type
 	}
 
-	return fmt.Sprintf("%s %s", namesList(fr.Names), fr.Type)
+	return fmt.Sprintf("%s %s", strings.Join(fr.Names, ", "), fr.Type)
 }
 
 // FuncType represents a function type definition.
@@ -357,7 +357,7 @@ func (s StructType) String() string {
 
 // StructField represents a [StructType] field.
 type StructField struct {
-	Type    Type     `json:"type"`
+	Type    string   `json:"type"`
 	Doc     string   `json:"doc"`
 	Comment string   `json:"comment"`
 	Names   []string `json:"names"`
@@ -385,7 +385,7 @@ func (sf StructField) String() string {
 		b.WriteString(mkComment(sf.Doc))
 	}
 
-	fmt.Fprintf(&b, "%s %s", namesList(sf.Names), sf.Type)
+	fmt.Fprintf(&b, "%s %s", strings.Join(sf.Names, ", "), sf.Type)
 
 	if sf.Comment != "" {
 		fmt.Fprintf(&b, " // %s", sf.Comment)
@@ -450,16 +450,4 @@ func (i InterfaceType) String() string {
 	b.WriteString("}")
 
 	return b.String()
-}
-
-// Type represents a type for function parameters, results, and struct fields.
-type Type struct {
-	Name   string `json:"name"`
-	Prefix string `json:"prefix,omitempty"`
-	Suffix string `json:"suffix,omitempty"`
-}
-
-// String returns the type code fragment.
-func (t Type) String() string {
-	return t.Prefix + t.Name + t.Suffix
 }

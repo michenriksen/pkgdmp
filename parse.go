@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/doc"
+	"go/printer"
 	"go/token"
 	"regexp"
 	"strings"
@@ -153,8 +154,8 @@ func (p *Parser) parseFunc(df *doc.Func) Func {
 	return fn
 }
 
-func (p *Parser) parseFuncReceiver(f *ast.Field) FuncReceiver {
-	fr := FuncReceiver{Type: p.parseType(f.Type)}
+func (*Parser) parseFuncReceiver(f *ast.Field) FuncReceiver {
+	fr := FuncReceiver{Type: printNodes(f.Type)}
 
 	if len(f.Names) != 0 {
 		fr.Name = f.Names[0].Name
@@ -163,17 +164,17 @@ func (p *Parser) parseFuncReceiver(f *ast.Field) FuncReceiver {
 	return fr
 }
 
-func (p *Parser) parseFuncParam(f *ast.Field) FuncParam {
+func (*Parser) parseFuncParam(f *ast.Field) FuncParam {
 	return FuncParam{
 		Names: identNames(f.Names),
-		Type:  p.parseType(f.Type),
+		Type:  printNodes(f.Type),
 	}
 }
 
-func (p *Parser) parseFuncResult(f *ast.Field) FuncResult {
+func (*Parser) parseFuncResult(f *ast.Field) FuncResult {
 	return FuncResult{
 		Names: identNames(f.Names),
-		Type:  p.parseType(f.Type),
+		Type:  printNodes(f.Type),
 	}
 }
 
@@ -196,7 +197,7 @@ func (p *Parser) parseStruct(name string, as *ast.StructType, fullDoc string) St
 
 		sf := StructField{
 			Names: identNames(f.Names),
-			Type:  p.parseType(f.Type),
+			Type:  printNodes(f.Type),
 			Doc:   p.mkDoc(f.Doc.Text()),
 		}
 
@@ -277,40 +278,6 @@ func (p *Parser) parseInterface(name string, aiface *ast.InterfaceType, fullDoc 
 	return iface
 }
 
-func (p *Parser) parseType(node ast.Node) Type {
-	switch t := node.(type) {
-	case *ast.Ident:
-		return Type{Name: t.Name}
-	case *ast.StarExpr:
-		return Type{Prefix: "*", Name: p.parseType(t.X).String()}
-	case *ast.Ellipsis:
-		return Type{Prefix: "...", Name: p.parseType(t.Elt).String()}
-	case *ast.SelectorExpr:
-		return Type{Prefix: p.parseType(t.X).String() + ".", Name: t.Sel.Name}
-	case *ast.ArrayType:
-		return Type{Prefix: "[]", Name: p.parseType(t.Elt).String()}
-	case *ast.MapType:
-		return Type{Name: "map[" + p.parseType(t.Key).String() + "]" + p.parseType(t.Value).String()}
-	case *ast.FuncType:
-		return Type{Name: p.funcTypeAsString(t)}
-	case *ast.ChanType:
-		ret := Type{Name: p.parseType(t.Value).String()}
-
-		switch t.Dir {
-		case ast.RECV:
-			ret.Prefix = "<-chan "
-		case ast.SEND:
-			ret.Prefix = "chan<- "
-		default:
-			ret.Prefix = "chan "
-		}
-
-		return ret
-	default:
-		return Type{Name: fmt.Sprintf("??%T", t)}
-	}
-}
-
 func (p *Parser) funcTypeAsString(fn *ast.FuncType) string {
 	var b strings.Builder
 
@@ -347,6 +314,23 @@ func (p *Parser) funcTypeAsString(fn *ast.FuncType) string {
 	return b.String()
 }
 
+func (*Parser) tokenIdent(tok token.Token) string {
+	switch tok {
+	case token.INT:
+		return "int"
+	case token.FLOAT:
+		return "float64"
+	case token.IMAG:
+		return "complex128"
+	case token.CHAR:
+		return "rune"
+	case token.STRING:
+		return "string"
+	default:
+		return "??unknown"
+	}
+}
+
 func (p *Parser) includeIdent(name string) bool {
 	if !isExportedIdent(name) && !p.opts.Unexported {
 		return false
@@ -374,4 +358,14 @@ func (p *Parser) mkDoc(fullDoc string) string {
 	pkg := doc.Package{}
 
 	return pkg.Synopsis(fullDoc)
+}
+
+func printNodes(nodes any) string {
+	var b strings.Builder
+
+	fset := token.NewFileSet()
+
+	printer.Fprint(&b, fset, nodes)
+
+	return b.String()
 }

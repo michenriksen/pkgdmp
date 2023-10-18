@@ -90,7 +90,3 @@ func resultsList(results []FuncResult) string {
 
 	return fmt.Sprintf("(%s)", strings.Join(res, ", "))
 }
-
-func namesList(names []string) string {
-	return strings.Join(names, ", ")
-}
