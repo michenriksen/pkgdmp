@@ -177,9 +177,9 @@ func (td TypeDef) String() string {
 // Field represents a function parameter, result, or struct field.
 type Field struct {
 	Type    string   `json:"type"`
-	Doc     string   `json:"doc"`
-	Comment string   `json:"comment"`
-	Names   []string `json:"names"`
+	Doc     string   `json:"doc,omitempty"`
+	Comment string   `json:"comment,omitempty"`
+	Names   []string `json:"names,omitempty"`
 }
 
 // Ident returns the name of the struct field.
