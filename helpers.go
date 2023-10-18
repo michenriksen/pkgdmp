@@ -3,6 +3,8 @@ package pkgdmp
 import (
 	"fmt"
 	"go/ast"
+	"go/printer"
+	"go/token"
 	"strings"
 )
 
@@ -26,6 +28,7 @@ func isExportedIdent(name string) bool {
 }
 
 func mkComment(s string) string {
+	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""
 	}
@@ -62,31 +65,37 @@ func mkComment(s string) string {
 	return b.String()
 }
 
-func paramsList(params []FuncParam) string {
-	res := make([]string, len(params))
+func fieldsList(fl []Field) string {
+	fLen := len(fl)
+	if fLen == 0 {
+		return ""
+	}
 
-	for i, p := range params {
-		res[i] = p.String()
+	res := make([]string, fLen)
+
+	for i, f := range fl {
+		res[i] = f.String()
 	}
 
 	return strings.Join(res, ", ")
 }
 
-func resultsList(results []FuncResult) string {
-	rLen := len(results)
-	if rLen == 0 {
-		return ""
+func resultsList(fl []Field) string {
+	s := fieldsList(fl)
+
+	if len(fl) > 1 {
+		return fmt.Sprintf("(%s)", s)
 	}
 
-	res := make([]string, rLen)
+	return s
+}
 
-	for i, r := range results {
-		res[i] = r.String()
-	}
+func printNodes(nodes any) string {
+	var b strings.Builder
 
-	if rLen == 1 && len(results[0].Names) == 0 {
-		return res[0]
-	}
+	fset := token.NewFileSet()
 
-	return fmt.Sprintf("(%s)", strings.Join(res, ", "))
+	printer.Fprint(&b, fset, nodes)
+
+	return b.String()
 }

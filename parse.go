@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/doc"
-	"go/printer"
 	"go/token"
 	"regexp"
 	"strings"
@@ -79,42 +78,87 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				continue
 			}
 
-			switch ts := typeSpec.Type.(type) {
-			case *ast.StructType:
-				if !p.opts.ExcludeStructs && p.includeIdent(t.Name) {
-					s := p.parseStruct(t.Name, ts, t.Doc)
+			td := TypeDef{
+				Name: t.Name,
+				Doc:  p.mkDoc(t.Doc),
+			}
 
-					for _, m := range t.Methods {
-						if !p.includeMethod(m.Name) {
+			switch ts := typeSpec.Type.(type) {
+			case *ast.Ident:
+				td.Type = ts.Name
+			case *ast.StructType:
+				td.Type = "struct"
+				td.Fields = p.parseFieldList(ts.Fields)
+			case *ast.InterfaceType:
+				td.Type = "interface"
+
+				if t.Methods != nil {
+					for _, m := range ts.Methods.List {
+						ft, ok := m.Type.(*ast.FuncType)
+						if !ok {
 							continue
 						}
 
-						s.Funcs = append(s.Funcs, p.parseFunc(m))
+						f := Func{
+							Name:    m.Names[0].Name,
+							Params:  p.parseFieldList(ft.Params),
+							Results: p.parseFieldList(ft.Results),
+							funcKw:  false,
+						}
+
+						if m.Doc != nil {
+							f.Doc = p.mkDoc(m.Doc.Text())
+						}
+
+						if m.Comment != nil {
+							f.Comment = p.mkDoc(m.Comment.Text())
+						}
+
+						td.Methods = append(td.Methods, f)
 					}
-
-					pkg.Structs = append(pkg.Structs, s)
-				}
-
-				if err := p.parseFuncs(pkg, t.Funcs); err != nil {
-					return fmt.Errorf("parsing functions for %s struct: %w", t.Name, err)
-				}
-			case *ast.InterfaceType:
-				if !p.opts.ExcludeInterfaces && p.includeIdent(t.Name) {
-					pkg.Interfaces = append(pkg.Interfaces, p.parseInterface(t.Name, ts, t.Doc))
-				}
-
-				if err := p.parseFuncs(pkg, t.Funcs); err != nil {
-					return fmt.Errorf("parsing functions for %s interface: %w", t.Name, err)
 				}
 			case *ast.FuncType:
-				if !p.opts.ExcludeFuncTypes && p.includeIdent(t.Name) {
-					pkg.FuncTypes = append(pkg.FuncTypes, p.parseFuncType(t.Name, ts, t.Doc))
+				td.Type = "func"
+				td.Params = p.parseFieldList(ts.Params)
+				td.Results = p.parseFieldList(ts.Results)
+			case *ast.MapType:
+				td.Type = "map"
+				td.Key = printNodes(ts.Key)
+				td.Value = printNodes(ts.Value)
+			case *ast.ChanType:
+				td.Type = "chan"
+				td.Value = printNodes(ts.Value)
+
+				switch ts.Dir {
+				case ast.RECV:
+					td.Dir = "recv"
+				case ast.SEND:
+					td.Dir = "send"
+				}
+			case *ast.ArrayType:
+				td.Type = "array"
+				td.Elt = printNodes(ts.Elt)
+
+				if ts.Len != nil {
+					td.Len = printNodes(ts.Len)
+				}
+			default:
+				continue
+			}
+
+			if err := p.parseFuncs(pkg, t.Funcs); err != nil {
+				return fmt.Errorf("parsing functions for %s type: %w", t.Name, err)
+			}
+
+			for _, m := range t.Methods {
+				if !p.includeMethod(m.Name) {
+					continue
 				}
 
-				if err := p.parseFuncs(pkg, t.Funcs); err != nil {
-					return fmt.Errorf("parsing %s function type implementations: %w", t.Name, err)
-				}
+				td.Methods = append(td.Methods, p.parseFunc(m))
 			}
+
+			pkg.Types = append(pkg.Types, td)
 		}
 	}
 
@@ -131,204 +175,50 @@ func (p *Parser) parseFunc(df *doc.Func) Func {
 	}
 
 	if decl.Recv != nil && decl.Recv.NumFields() != 0 {
-		fr := p.parseFuncReceiver(decl.Recv.List[0])
+		fr := p.parseField(decl.Recv.List[0])
 		fn.Receiver = &fr
 	}
 
 	if decl.Type.Params != nil && decl.Type.Params.NumFields() != 0 {
-		fn.Params = make([]FuncParam, decl.Type.Params.NumFields())
-
-		for i, param := range decl.Type.Params.List {
-			fn.Params[i] = p.parseFuncParam(param)
-		}
+		fn.Params = p.parseFieldList(decl.Type.Params)
 	}
 
 	if decl.Type.Results != nil && decl.Type.Results.NumFields() != 0 {
-		fn.Results = make([]FuncResult, decl.Type.Results.NumFields())
-
-		for i, r := range decl.Type.Results.List {
-			fn.Results[i] = p.parseFuncResult(r)
-		}
+		fn.Results = p.parseFieldList(decl.Type.Results)
 	}
 
 	return fn
 }
 
-func (*Parser) parseFuncReceiver(f *ast.Field) FuncReceiver {
-	fr := FuncReceiver{Type: printNodes(f.Type)}
-
-	if len(f.Names) != 0 {
-		fr.Name = f.Names[0].Name
+func (p *Parser) parseFieldList(fl *ast.FieldList) []Field {
+	if fl == nil {
+		return nil
 	}
 
-	return fr
+	res := make([]Field, len(fl.List))
+
+	for i, f := range fl.List {
+		res[i] = p.parseField(f)
+	}
+
+	return res
 }
 
-func (*Parser) parseFuncParam(f *ast.Field) FuncParam {
-	return FuncParam{
-		Names: identNames(f.Names),
-		Type:  printNodes(f.Type),
-	}
-}
-
-func (*Parser) parseFuncResult(f *ast.Field) FuncResult {
-	return FuncResult{
-		Names: identNames(f.Names),
-		Type:  printNodes(f.Type),
-	}
-}
-
-func (p *Parser) parseStruct(name string, as *ast.StructType, fullDoc string) StructType {
-	s := StructType{
-		Name: name,
-		Doc:  p.mkDoc(fullDoc),
+func (p *Parser) parseField(af *ast.Field) Field {
+	f := Field{
+		Names: identNames(af.Names),
+		Type:  printNodes(af.Type),
 	}
 
-	if as.Fields == nil || as.Fields.NumFields() == 0 {
-		return s
+	if af.Doc != nil {
+		f.Doc = p.mkDoc(af.Doc.Text())
 	}
 
-	s.Fields = make([]StructField, 0, as.Fields.NumFields())
-
-	for _, f := range as.Fields.List {
-		if !p.opts.Unexported && !isExportedIdent(f.Names[0].Name) {
-			continue
-		}
-
-		sf := StructField{
-			Names: identNames(f.Names),
-			Type:  printNodes(f.Type),
-			Doc:   p.mkDoc(f.Doc.Text()),
-		}
-
-		if f.Comment != nil && len(f.Comment.List) != 0 {
-			sf.Comment = p.mkDoc(f.Comment.List[0].Text)
-		}
-
-		s.Fields = append(s.Fields, sf)
+	if af.Comment != nil {
+		f.Comment = p.mkDoc(af.Comment.Text())
 	}
 
-	return s
-}
-
-func (p *Parser) parseFuncType(name string, aft *ast.FuncType, fullDoc string) FuncType {
-	ft := FuncType{
-		Name: name,
-		Doc:  p.mkDoc(fullDoc),
-	}
-
-	if aft.Params != nil && aft.Params.NumFields() != 0 {
-		ft.Params = make([]FuncParam, aft.Params.NumFields())
-
-		for i, param := range aft.Params.List {
-			ft.Params[i] = p.parseFuncParam(param)
-		}
-	}
-
-	if aft.Results != nil && aft.Results.NumFields() != 0 {
-		ft.Results = make([]FuncResult, aft.Results.NumFields())
-
-		for i, res := range aft.Results.List {
-			ft.Results[i] = p.parseFuncResult(res)
-		}
-	}
-
-	return ft
-}
-
-func (p *Parser) parseInterface(name string, aiface *ast.InterfaceType, fullDoc string) InterfaceType {
-	iface := InterfaceType{
-		Name: name,
-		Doc:  p.mkDoc(fullDoc),
-	}
-
-	if aiface.Methods == nil || aiface.Methods.NumFields() == 0 {
-		return iface
-	}
-
-	iface.Funcs = make([]Func, aiface.Methods.NumFields())
-
-	for i, m := range aiface.Methods.List {
-		fn := Func{Name: m.Names[0].Name}
-
-		ft, ok := m.Type.(*ast.FuncType)
-		if !ok {
-			panic(fmt.Errorf("failed asserting %s interface method %s as *ast.FuncType", name, fn.Name))
-		}
-
-		if ft.Params != nil && ft.Params.NumFields() != 0 {
-			fn.Params = make([]FuncParam, ft.Params.NumFields())
-
-			for j, param := range ft.Params.List {
-				fn.Params[j] = p.parseFuncParam(param)
-			}
-		}
-
-		if ft.Results != nil && ft.Results.NumFields() != 0 {
-			fn.Results = make([]FuncResult, ft.Results.NumFields())
-
-			for j, res := range ft.Results.List {
-				fn.Results[j] = p.parseFuncResult(res)
-			}
-		}
-
-		iface.Funcs[i] = fn
-	}
-
-	return iface
-}
-
-func (p *Parser) funcTypeAsString(fn *ast.FuncType) string {
-	var b strings.Builder
-
-	if fn.Func != token.NoPos {
-		b.WriteString("func")
-	}
-
-	if fn.Params != nil {
-		params := make([]string, len(fn.Params.List))
-
-		for i, param := range fn.Params.List {
-			params[i] = p.parseFuncParam(param).String()
-		}
-
-		fmt.Fprintf(&b, "(%s)", strings.Join(params, ", "))
-	}
-
-	if fn.Results != nil && len(fn.Results.List) != 0 {
-		results := make([]string, len(fn.Results.List))
-
-		for i, r := range fn.Results.List {
-			results[i] = p.parseFuncResult(r).String()
-		}
-
-		if len(results) == 1 {
-			b.WriteString(" " + results[0])
-
-			return b.String()
-		}
-
-		fmt.Fprintf(&b, " (%s)", strings.Join(results, ", "))
-	}
-
-	return b.String()
-}
-
-func (*Parser) tokenIdent(tok token.Token) string {
-	switch tok {
-	case token.INT:
-		return "int"
-	case token.FLOAT:
-		return "float64"
-	case token.IMAG:
-		return "complex128"
-	case token.CHAR:
-		return "rune"
-	case token.STRING:
-		return "string"
-	default:
-		return "??unknown"
-	}
+	return f
 }
 
 func (p *Parser) includeIdent(name string) bool {
@@ -344,12 +234,16 @@ func (p *Parser) includeMethod(name string) bool {
 	return isExportedIdent(name) || p.opts.Unexported
 }
 
+func (p *Parser) includeField(name string) bool {
+	return isExportedIdent(name) || p.opts.Unexported
+}
+
 func (p *Parser) mkDoc(fullDoc string) string {
 	if p.opts.ExcludeDocs {
 		return ""
 	}
 
-	fullDoc = strings.TrimPrefix(fullDoc, "// ")
+	fullDoc = strings.TrimPrefix(strings.TrimSpace(fullDoc), "// ")
 
 	if p.opts.FullDocs {
 		return fullDoc
@@ -358,14 +252,4 @@ func (p *Parser) mkDoc(fullDoc string) string {
 	pkg := doc.Package{}
 
 	return pkg.Synopsis(fullDoc)
-}
-
-func printNodes(nodes any) string {
-	var b strings.Builder
-
-	fset := token.NewFileSet()
-
-	printer.Fprint(&b, fset, nodes)
-
-	return b.String()
 }
