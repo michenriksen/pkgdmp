@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+var typeNames = map[token.Token]string{
+	token.INT:    "int",
+	token.FLOAT:  "float64",
+	token.IMAG:   "complex128",
+	token.CHAR:   "rune",
+	token.STRING: "string",
+}
+
 // ParserOptions represents the options for [Parser].
 type ParserOptions struct {
 	ExcludeRegexp     *regexp.Regexp // Don't parse entities with names matching regexp.
@@ -39,15 +47,80 @@ func (p *Parser) Package(dPkg *doc.Package) (*Package, error) {
 		Doc:  p.mkDoc(dPkg.Doc),
 	}
 
-	if err := p.parseFuncs(pkg, dPkg.Funcs); err != nil {
-		return nil, fmt.Errorf("parsing functions: %w", err)
+	if err := p.parseConsts(pkg, dPkg.Consts); err != nil {
+		return nil, fmt.Errorf("parsing constants: %w", err)
 	}
 
 	if err := p.parseTypes(pkg, dPkg.Types); err != nil {
 		return nil, fmt.Errorf("parsing types: %w", err)
 	}
 
+	if err := p.parseFuncs(pkg, dPkg.Funcs); err != nil {
+		return nil, fmt.Errorf("parsing functions: %w", err)
+	}
+
 	return pkg, nil
+}
+
+func (p *Parser) parseConsts(pkg *Package, cnsts []*doc.Value) error {
+	for _, dVal := range cnsts {
+		pkg.Consts = append(pkg.Consts, p.parseConst(dVal))
+	}
+
+	return nil
+}
+
+func (p *Parser) parseConst(dVal *doc.Value) ConstGroup {
+	cg := ConstGroup{Doc: p.mkDoc(dVal.Doc)}
+
+	for _, s := range dVal.Decl.Specs {
+		vs, ok := s.(*ast.ValueSpec)
+		if !ok {
+			panic(fmt.Errorf("unsupported const spec type %T", s))
+		}
+
+		if !p.includeIdent(vs.Names[0].Name) {
+			continue
+		}
+
+		c := Const{
+			Names:   identNames(vs.Names),
+			Values:  make([]Value, 0, len(vs.Values)),
+			valSpec: vs,
+		}
+
+		for _, v := range vs.Values {
+			var val Value
+
+			switch vt := v.(type) {
+			case *ast.BasicLit:
+				val.Value = vt.Value
+				val.Type = typeNames[vt.Kind]
+			case *ast.CallExpr:
+				if lit, ok := vt.Args[0].(*ast.BasicLit); ok {
+					val.Value = lit.Value
+				}
+
+				val.Type = printNodes(vt.Fun)
+				val.Specific = true
+			case *ast.Ident:
+				val.Type = vt.Name
+			default:
+				panic(fmt.Errorf("unsupported const value type %T", vt))
+			}
+
+			if vs.Type != nil {
+				val.Type = printNodes(vs.Type)
+				val.Specific = true
+			}
+
+			c.Values = append(c.Values, val)
+		}
+
+		cg.Consts = append(cg.Consts, c)
+	}
+
+	return cg
 }
 
 func (p *Parser) parseFuncs(pkg *Package, fns []*doc.Func) error {
@@ -85,6 +158,10 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 			td := TypeDef{
 				Name: t.Name,
 				Doc:  p.mkDoc(t.Doc),
+			}
+
+			if err := p.parseConsts(pkg, t.Consts); err != nil {
+				return fmt.Errorf("parsing consts for %s type: %w", t.Name, err)
 			}
 
 			if err := p.parseFuncs(pkg, t.Funcs); err != nil {

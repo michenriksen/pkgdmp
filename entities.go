@@ -2,7 +2,10 @@ package pkgdmp
 
 import (
 	"fmt"
+	"go/ast"
 	"go/format"
+	"go/printer"
+	"go/token"
 	"io"
 	"strings"
 )
@@ -10,10 +13,11 @@ import (
 // Package represents a go package containing functions and types such as
 // structs and interfaces.
 type Package struct {
-	Name  string    `json:"name"`
-	Doc   string    `json:"doc,omitempty"`
-	Funcs []Func    `json:"funcs,omitempty"`
-	Types []TypeDef `json:"types"`
+	Name   string       `json:"name"`
+	Doc    string       `json:"doc,omitempty"`
+	Consts []ConstGroup `json:"consts,omitempty"`
+	Funcs  []Func       `json:"funcs,omitempty"`
+	Types  []TypeDef    `json:"types,omitempty"`
 }
 
 // Source returns the formatted package signature source.
@@ -34,6 +38,11 @@ func (p *Package) Print(w io.Writer) {
 
 	fmt.Fprintf(w, "package %s", p.Name)
 
+	for _, c := range p.Consts {
+		fmt.Fprint(w, "\n\n")
+		c.Print(w)
+	}
+
 	for _, t := range p.Types {
 		fmt.Fprint(w, "\n\n")
 		t.Print(w)
@@ -47,13 +56,91 @@ func (p *Package) Print(w io.Writer) {
 	fmt.Fprint(w, "\n")
 }
 
-// String returns the unformatted package signature source.
+// String returns the unformatted package signature code.
 func (p *Package) String() string {
 	var b strings.Builder
 
 	p.Print(&b)
 
 	return b.String()
+}
+
+// ConstGroup represents one or more const declarations.
+type ConstGroup struct {
+	Doc    string  `json:"doc,omitempty"`
+	Consts []Const `json:"consts"`
+}
+
+// Print writes unformatted const declaration code to writer.
+func (cg ConstGroup) Print(w io.Writer) {
+	if len(cg.Consts) == 0 {
+		return
+	}
+
+	if cg.Doc != "" {
+		fmt.Fprint(w, mkComment(cg.Doc))
+	}
+
+	fmt.Fprint(w, "const ")
+
+	if len(cg.Consts) == 1 {
+		cg.Consts[0].Print(w)
+		return
+	}
+
+	fmt.Fprint(w, "(\n")
+
+	for _, c := range cg.Consts {
+		fmt.Fprint(w, "    ")
+		c.Print(w)
+		fmt.Fprint(w, "\n")
+	}
+
+	fmt.Fprint(w, ")")
+}
+
+// String returns the unformatted const declaration code.
+func (cg ConstGroup) String() string {
+	var b strings.Builder
+
+	cg.Print(&b)
+
+	return b.String()
+}
+
+// Const represents a single const declaration.
+type Const struct {
+	valSpec *ast.ValueSpec
+	Doc     string   `json:"doc,omitempty"`
+	Names   []string `json:"names"`
+	Values  []Value  `json:"values"`
+}
+
+func (c Const) IsExported() bool {
+	return isExportedIdent(c.Names[0])
+}
+
+// Print writes the unformatted const declaration code fragment to writer.
+func (c Const) Print(w io.Writer) {
+	fset := token.NewFileSet()
+
+	printer.Fprint(w, fset, c.valSpec)
+}
+
+// String returns the unformatted const declaration code fragment.
+func (c Const) String() string {
+	var b strings.Builder
+
+	c.Print(&b)
+
+	return b.String()
+}
+
+// Value represents a value in a [Const] declaration.
+type Value struct {
+	Value    string `json:"value,omitempty"`
+	Type     string `json:"type"`
+	Specific bool   `json:"specific,omitempty"`
 }
 
 // Func represents a function or a struct method if the Receiver field contains

@@ -5,6 +5,32 @@ import (
 	"fmt"
 )
 
+// MyLogLevel is an exported custom type.
+type MyLogLevel = int
+
+// Check that parser handles this common const declaration method correctly.
+const (
+	MyFatal MyLogLevel = iota
+	MyError
+	MyWarn
+	MyInfo
+	MyDebug
+)
+
+// MySingleConst checks that parser handles a single const declaration
+// correctly.
+const MySingleConst = "example"
+
+// An ugly const declaration group to check that parser handles different
+// scenarios correctly.
+const (
+	MyStringConst, MyUint32Const, MyIntConst         = "hello", uint32(123), 42
+	MyFloatConst                                     = 1.234
+	MyFloat32Const                           float32 = 4.321
+)
+
+const MyInitConst int
+
 // MyExportedType is an exported custom type.
 type MyExportedType int
 
