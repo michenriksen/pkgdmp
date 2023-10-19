@@ -1,5 +1,28 @@
 package mypackage
 
+// An ugly const declaration group to check that parser handles different
+// scenarios correctly.
+const (
+	MyStringConst, MyUint32Const, MyIntConst         = "hello", uint32(123), 42
+	MyFloatConst                                     = 1.234
+	MyFloat32Const                           float32 = 4.321
+)
+
+const MyInitConst int
+
+// MySingleConst checks that parser handles a single const declaration
+// correctly.
+const MySingleConst = "example"
+
+// Check that parser handles this common const declaration method correctly.
+const (
+	MyFatal MyLogLevel = iota
+	MyError
+	MyWarn
+	MyInfo
+	MyDebug
+)
+
 // MyExportedType is an exported custom type.
 type MyExportedType int
 
@@ -12,6 +35,9 @@ type MyInterface interface {
 	MyMethod() error
 }
 
+// MyLogLevel is an exported custom type.
+type MyLogLevel int
+
 // MyStruct is a struct with exported and unexported fields.
 type MyStruct struct {
 	ExportedField int // exported field.
@@ -20,6 +46,12 @@ type MyStruct struct {
 // MyMethod is a method associated with MyStruct.
 func (s MyStruct) MyMethod()
 
+// MyThirdFunction returns a function type.
+func MyThirdFunction() MyFunctionType
+
+// NewMyStruct is an example constructor function for [MyStruct]
+func NewMyStruct(n int) (*MyStruct, error)
+
 // MyFunction is an example function that takes two integers as input and
 // returns a boolean result.
 func MyFunction(a, b int) bool
@@ -27,9 +59,3 @@ func MyFunction(a, b int) bool
 // MyOtherFunction is an exported function that does not match
 // [MyFunctionType].
 func MyOtherFunction(s string, cb func(string) bool) bool
-
-// MyThirdFunction returns a function type.
-func MyThirdFunction() MyFunctionType
-
-// NewMyStruct is an example constructor function for [MyStruct]
-func NewMyStruct(n int) (*MyStruct, error)

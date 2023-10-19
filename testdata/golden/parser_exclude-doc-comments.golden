@@ -1,5 +1,23 @@
 package mypackage
 
+const (
+	MyStringConst, MyUint32Const, MyIntConst         = "hello", uint32(123), 42
+	MyFloatConst                                     = 1.234
+	MyFloat32Const                           float32 = 4.321
+)
+
+const MyInitConst int
+
+const MySingleConst = "example"
+
+const (
+	MyFatal MyLogLevel = iota
+	MyError
+	MyWarn
+	MyInfo
+	MyDebug
+)
+
 type MyExportedType int
 
 type MyFunctionType func(int, int) bool
@@ -8,16 +26,18 @@ type MyInterface interface {
 	MyMethod() error
 }
 
+type MyLogLevel int
+
 type MyStruct struct {
 	ExportedField int
 }
 
 func (s MyStruct) MyMethod()
 
-func MyFunction(a, b int) bool
-
-func MyOtherFunction(s string, cb func(string) bool) bool
-
 func MyThirdFunction() MyFunctionType
 
 func NewMyStruct(n int) (*MyStruct, error)
+
+func MyFunction(a, b int) bool
+
+func MyOtherFunction(s string, cb func(string) bool) bool
