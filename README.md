@@ -20,13 +20,15 @@
 
 **Todo:**
 
-- [ ] Implement parsing and printing of `const` types.
-- [ ] Implement parsing and printing of `var` types.
+- [x] Implement parsing and printing of `const`.
+- [ ] Implement parsing and printing of `var`.
 
 ## Usage
 
 ```console
 user@example:~$ pkgdmp -help
+
+pkgdmp v0.2.0
 
 USAGE:
 
@@ -35,33 +37,36 @@ USAGE:
 FLAGS:
 
   -exclude string
-        exclude entities with names matching regular expression [$PKGDMP_EXCLUDE]
-  -full-doc
-        include full doc comments instead of synopsis [$PKGDMP_FULL_DOC]
+        comma-separated list of symbol types to exclude [$PKGDMP_EXCLUDE]
+  -exclude-matching string
+        exclude symbols with names matching regular expression [$PKGDMP_EXCLUDE_MATCHING]
+  -exclude-packages string
+        comma-separated list of package names to exclude [$PKGDMP_EXCLUDE_PACKAGES]
+  -full-docs
+        include full doc comments instead of synopsis [$PKGDMP_FULL_DOCS]
   -json
         output as JSON [$PKGDMP_JSON]
-  -match string
-        only include entities with names matching regular expression [$PKGDMP_MATCH]
-  -no-doc
-        exclude doc comments [$PKGDMP_NO_DOC]
+  -matching string
+        only include symbol with names matching regular expression [$PKGDMP_MATCHING]
+  -no-docs
+        exclude doc comments [$PKGDMP_NO_DOCS]
   -no-env
         skip loading of configuration from 'PKGDMP_*' environment variables
-  -no-func-types
-        exclude function types [$PKGDMP_NO_FUNC_TYPES]
-  -no-funcs
-        exclude functions [$PKGDMP_NO_FUNCS]
-  -no-highlight
-        skip source code highlighting [$PKGDMP_NO_HIGHLIGHT]
-  -no-interfaces
-        exclude interfaces [$PKGDMP_NO_INTERFACES]
-  -no-structs
-        exclude structs [$PKGDMP_NO_STRUCTS]
+  -only string
+        comma-separated list of symbol types to include [$PKGDMP_ONLY]
+  -only-packages string
+        comma-separated list of package names to include [$PKGDMP_ONLY_PACKAGES]
   -theme string
         syntax highlighting theme to use - see https://xyproto.github.io/splash/docs/ [$PKGDMP_THEME] (default "swapoff")
   -unexported
         include unexported entities [$PKGDMP_UNEXPORTED]
   -version
         print version information and exit
+
+SYMBOL TYPES:
+
+  arrayType, chanType, const, func, funcType, identType, interface, mapType, struct
+
 ```
 
 ## Examples
@@ -72,50 +77,67 @@ Analyze the contents of the `myproject` directory and display all exported entit
 user@example:~$ pkgdmp myproject
 package mypackage
 
-// MyFunctionType is a function type that takes two integers and returns a
-// boolean.
-type MyFunctionType func(int, int) bool
+// An ugly const declaration group to check that parser handles different
+// scenarios correctly.
+const (
+        MyStringConst, MyUint32Const, MyIntConst         = "hello", uint32(123), 42
+        MyFloatConst                                     = 1.234
+        MyFloat32Const                           float32 = 4.321
+)
 
-// MyStruct is a struct with exported and unexported fields.
-type MyStruct struct {
-        ExportedField int // exported field.
-}
+const MyInitConst int
 
-// MyMethod is a method associated with MyStruct.
-func (s MyStruct) MyMethod()
+// MySingleConst checks that parser handles a single const declaration
+// correctly.
+const MySingleConst = "example"
 
+// Check that parser handles this common const declaration method correctly.
+const (
+        MyFatal MyLogLevel = iota
+        MyError
+        MyWarn
+        MyInfo
+        MyDebug
+)
 . . .
 ```
 
 Analyze the `myproject` directory, excluding entities matching pattern and displaying full documentation comments in JSON format:
 
 ```console
-user@example:~$ pkgdmp -exclude "^My.*Function$" -full-doc -json myproject
+user@example:~$ pkgdmp -exclude-matching "^My.*Function$" -full-docs -json myproject
 [
   {
     "name": "mypackage",
-    "funcs": [
+    "consts": [
       {
-        "name": "NewMyStruct",
-        "synopsis": "NewMyStruct is an example constructor function for [MyStruct]\n",
-        "params": [
+        "doc": "An ugly const declaration group to check that parser handles different\nscenarios correctly.",
+        "consts": [
           {
-            "type": {
-              "name": "int"
-            },
             "names": [
-              "n"
+              "MyStringConst",
+              "MyUint32Const",
+              "MyIntConst"
+            ],
+            "values": [
+              {
+                "value": "\"hello\"",
+                "type": "string"
+              },
+              {
+                "value": "123",
+                "type": "uint32",
+                "specific": true
+              },
+              {
+                "value": "42",
+                "type": "int"
+              }
             ]
-          }
-        ],
-        "results": [
-          {
-            "type": {
-              "name": "MyStruct",
-              "prefix": "*"
-            },
-            "names": null
           },
+          {
+            "names": [
+              "MyFloatConst"
 . . .
 ```
 
