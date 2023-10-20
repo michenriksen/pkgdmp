@@ -26,6 +26,7 @@ ARCH := $(if $(GOARCH),$(GOARCH),$(shell go env GOARCH))
 
 TAG := $(VERSION)__$(OS)_$(ARCH)
 
+GOBIN ?= "go"
 GOFLAGS ?=
 HTTP_PROXY ?=
 HTTPS_PROXY ?=
@@ -51,6 +52,10 @@ install: # @HELP build and install from current code
 install:
 	OS=$(OS) ARCH=$(ARCH) VERSION=$(VERSION) ./scripts/install.sh
 
+next-version: # @HELP determine the next semantic release version
+next-version:
+	$(GOBIN) run github.com/caarlos0/svu@latest next
+
 clean: # @HELP remove build artifacts
 clean:
 	rm -rf ./bin
@@ -62,8 +67,9 @@ help:
 	echo "  VERSION  = $(VERSION)"
 	echo "  OS       = $(OS)"
 	echo "  ARCH     = $(ARCH)"
-	echo "  DBG      = $(DBG)"
+	echo "  GOBIN    = $(GOBIN)"
 	echo "  GOFLAGS  = $(GOFLAGS)"
+	echo "  DBG      = $(DBG)"
 	echo
 	echo "TARGETS:"
 	grep -E '^.*: *# *@HELP' $(MAKEFILE_LIST)     \
