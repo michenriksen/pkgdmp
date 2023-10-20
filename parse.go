@@ -255,7 +255,7 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				continue
 			}
 
-			td.Methods = methods
+			td.Methods = append(td.Methods, methods...)
 			pkg.Types = append(pkg.Types, td)
 		}
 	}
