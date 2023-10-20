@@ -19,7 +19,14 @@ var typeNames = map[token.Token]string{
 
 // ParserOption configures a [Parser].
 type ParserOption interface {
+	// Fingerprint should return a 64-bit FNV-1a hash of the option and its
+	// configuration.
+	//
+	// This method is intended for testing purposes.
+	//
+	// See: https://pkg.go.dev/hash/fnv
 	Fingerprint() uint64
+
 	apply(*Parser) error
 }
 

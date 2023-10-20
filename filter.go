@@ -93,8 +93,18 @@ type Symbol interface {
 // logic, or false if it should be excluded.
 type SymbolFilterFn func(Symbol) bool
 
+// SymbolFilter filters symbols by different conditions.
 type SymbolFilter interface {
+	// Include should return true if symbol should be included according to
+	// the filter's logic and configuration.
 	Include(Symbol) bool
+
+	// Fingerprint should return a 64-bit FNV-1a hash of the filter and its
+	// configuration.
+	//
+	// This method is intended for testing purposes.
+	//
+	// See: https://pkg.go.dev/hash/fnv
 	Fingerprint() uint64
 }
 
