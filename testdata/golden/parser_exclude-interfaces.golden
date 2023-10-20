@@ -35,11 +35,19 @@ type MyLogLevel int
 
 // MyStruct is a struct with exported and unexported fields.
 type MyStruct struct {
-	ExportedField int // exported field.
+	ExportedField                      int    // exported field.
+	unexportedField                    string // unexported field.
+	unexportedField1, unexportedField2 int    // unexported shorthand fields.
 }
 
 // MyMethod is a method associated with MyStruct.
 func (s MyStruct) MyMethod()
+
+// myUnexportedMethod is an example unexported method.
+func (s MyStruct) myUnexportedMethod(a, b string) string
+
+// myUnexportedType is an unexported custom type.
+type myUnexportedType string
 
 // MyThirdFunction returns a function type.
 func MyThirdFunction() MyFunctionType
@@ -54,3 +62,6 @@ func MyFunction(a, b int) bool
 // MyOtherFunction is an exported function that does not match
 // [MyFunctionType].
 func MyOtherFunction(s string, cb func(string) bool) bool
+
+// myUnexportedFunction is an unexported function.
+func myUnexportedFunction(a string, b int) string

@@ -29,10 +29,20 @@ type MyInterface interface {
 type MyLogLevel int
 
 type MyStruct struct {
-	ExportedField int
+	ExportedField                      int
+	unexportedField                    string
+	unexportedField1, unexportedField2 int
 }
 
 func (s MyStruct) MyMethod()
+
+func (s MyStruct) myUnexportedMethod(a, b string) string
+
+type myUnexportedInterface interface {
+	AnotherMethod(string, int, MyFunctionType) (n int, err error)
+}
+
+type myUnexportedType string
 
 func MyThirdFunction() MyFunctionType
 
@@ -41,3 +51,5 @@ func NewMyStruct(n int) (*MyStruct, error)
 func MyFunction(a, b int) bool
 
 func MyOtherFunction(s string, cb func(string) bool) bool
+
+func myUnexportedFunction(a string, b int) string

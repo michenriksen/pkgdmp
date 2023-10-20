@@ -1,5 +1,8 @@
 package mypackage
 
+// MyThirdFunction returns a function type.
+func MyThirdFunction() MyFunctionType
+
 // MyFunction is an example function that takes two integers as input and
 // returns a boolean result.
 func MyFunction(a, b int) bool
