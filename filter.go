@@ -89,10 +89,6 @@ type Symbol interface {
 	SymbolType() SymbolType
 }
 
-// SymbolFilterFn returns true if a symbol should be included according to its
-// logic, or false if it should be excluded.
-type SymbolFilterFn func(Symbol) bool
-
 // SymbolFilter filters symbols by different conditions.
 type SymbolFilter interface {
 	// Include should return true if symbol should be included according to
