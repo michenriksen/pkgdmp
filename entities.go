@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/format"
-	"go/printer"
-	"go/token"
 	"io"
 	"strings"
 )
@@ -28,6 +26,21 @@ func (p *Package) Source() (string, error) {
 	}
 
 	return string(formatted), nil
+}
+
+// Ident returns the package name.
+func (p *Package) Ident() string {
+	return p.Name
+}
+
+// IsExported always returns true for packages.
+func (*Package) IsExported() bool {
+	return true
+}
+
+// SymbolType returns [SymbolPackage].
+func (*Package) SymbolType() SymbolType {
+	return SymbolPackage
 }
 
 // Print writes unformatted package code to writer.
@@ -116,15 +129,24 @@ type Const struct {
 	Values  []Value  `json:"values"`
 }
 
+// Ident returns the first name.
+func (c Const) Ident() string {
+	return c.Names[0]
+}
+
+// IsExported returns true if the first name is exported.
 func (c Const) IsExported() bool {
 	return isExportedIdent(c.Names[0])
 }
 
+// SymbolType returns [SymbolConst].
+func (Const) SymbolType() SymbolType {
+	return SymbolConst
+}
+
 // Print writes the unformatted const declaration code fragment to writer.
 func (c Const) Print(w io.Writer) {
-	fset := token.NewFileSet()
-
-	printer.Fprint(w, fset, c.valSpec)
+	fmt.Fprint(w, printNodes(c.valSpec))
 }
 
 // String returns the unformatted const declaration code fragment.
@@ -163,6 +185,11 @@ func (f Func) Ident() string {
 // IsExported returns true if the function is exported.
 func (f Func) IsExported() bool {
 	return isExportedIdent(f.Name)
+}
+
+// SymbolType returns [SymbolFunc].
+func (Func) SymbolType() SymbolType {
+	return SymbolFunc
 }
 
 // Print writes unformatted function signature code to writer.
@@ -223,6 +250,26 @@ func (td TypeDef) IsExported() bool {
 	return isExportedIdent(td.Name)
 }
 
+// SymbolType returns the type definition's symbol type.
+func (td TypeDef) SymbolType() SymbolType {
+	switch td.Type {
+	case "struct":
+		return SymbolStructType
+	case "interface":
+		return SymbolInterfaceType
+	case "func":
+		return SymbolFuncType
+	case "map":
+		return SymbolMapType
+	case "chan":
+		return SymbolChanType
+	case "array":
+		return SymbolArrayType
+	default:
+		return SymbolIdentType
+	}
+}
+
 // Print writes unformatted type definition code to writer.
 func (td TypeDef) Print(w io.Writer) {
 	switch td.Type {
@@ -263,20 +310,31 @@ func (td TypeDef) String() string {
 
 // Field represents a function parameter, result, or struct field.
 type Field struct {
-	Type    string   `json:"type"`
-	Doc     string   `json:"doc,omitempty"`
-	Comment string   `json:"comment,omitempty"`
-	Names   []string `json:"names,omitempty"`
+	Type       string   `json:"type"`
+	Doc        string   `json:"doc,omitempty"`
+	Comment    string   `json:"comment,omitempty"`
+	Names      []string `json:"names,omitempty"`
+	symbolType SymbolType
 }
 
-// Ident returns the name of the struct field.
+// Ident returns the name of the field.
 func (sf Field) Ident() string {
+	if len(sf.Names) == 0 {
+		return ""
+	}
+
 	return sf.Names[0]
 }
 
-// IsExported returns true if the struct field is exported.
+// IsExported returns true if the field is exported.
 func (sf Field) IsExported() bool {
 	return isExportedIdent(sf.Names[0])
+}
+
+// SymbolType returns either [SymbolStructField], [SymbolParamField], or
+// [SymbolResultField].
+func (sf Field) SymbolType() SymbolType {
+	return sf.symbolType
 }
 
 // Print writes unformatted field code fragment to writer.

@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -28,6 +29,18 @@ const versionTmpl = `%s:
   Released:   %s
 `
 
+var symbolTypeMap = map[string]pkgdmp.SymbolType{
+	"arrayType": pkgdmp.SymbolArrayType,
+	"chanType":  pkgdmp.SymbolChanType,
+	"const":     pkgdmp.SymbolConst,
+	"func":      pkgdmp.SymbolFunc,
+	"funcType":  pkgdmp.SymbolFuncType,
+	"identType": pkgdmp.SymbolIdentType,
+	"interface": pkgdmp.SymbolInterfaceType,
+	"mapType":   pkgdmp.SymbolMapType,
+	"struct":    pkgdmp.SymbolStructType,
+}
+
 var (
 	// ErrNoDirs is returned by [ParseFlags] if args contain no directories.
 	ErrNoDirs = errors.New("no directories in command line arguments")
@@ -40,21 +53,21 @@ var flagSet *flag.FlagSet
 
 // Config represents CLI configuration from flags.
 type Config struct {
-	Match        string
-	Exclude      string
-	Theme        string
-	Dirs         []string `env:"skip"`
-	NoFuncTypes  bool
-	NoDoc        bool
-	JSON         bool
-	NoEnv        bool `env:"skip"`
-	NoFuncs      bool
-	NoHighlight  bool
-	NoInterfaces bool
-	NoStructs    bool
-	FullDoc      bool
-	Unexported   bool
-	Version      bool `env:"skip"`
+	Matching        string
+	ExcludeMatching string
+	Only            string
+	Exclude         string
+	OnlyPackages    string
+	ExcludePackages string
+	Theme           string
+	Dirs            []string `env:"skip"`
+	NoDocs          bool
+	JSON            bool
+	NoEnv           bool `env:"skip"`
+	NoHighlight     bool
+	FullDocs        bool
+	Unexported      bool
+	Version         bool `env:"skip"`
 }
 
 // ParseFlags parses command line arguments as flags and returns a CLI
@@ -95,36 +108,85 @@ func ParseFlags(args []string, output io.Writer) (*Config, int, error) {
 }
 
 // ParserOptsFromCfg constructs parser options from CLI configuration.
-func ParserOptsFromCfg(cfg *Config) (pkgdmp.ParserOptions, error) {
-	opts := pkgdmp.ParserOptions{
-		ExcludeDocs:       cfg.NoDoc,
-		ExcludeFuncTypes:  cfg.NoFuncTypes,
-		ExcludeFuncs:      cfg.NoFuncs,
-		ExcludeInterfaces: cfg.NoInterfaces,
-		ExcludeStructs:    cfg.NoStructs,
-		FullDocs:          cfg.FullDoc,
-		Unexported:        cfg.Unexported,
+func ParserOptsFromCfg(cfg *Config) ([]pkgdmp.ParserOption, error) {
+	var opts []pkgdmp.ParserOption
+
+	if cfg.FullDocs {
+		opts = append(opts, pkgdmp.WithFullDocs())
 	}
 
-	if cfg.Match != "" {
-		p, err := regexp.Compile(cfg.Match)
-		if err != nil {
-			return pkgdmp.ParserOptions{}, fmt.Errorf("parsing match regular expression: %w", err)
-		}
-
-		opts.OnlyRegexp = p
+	if cfg.NoDocs {
+		opts = append(opts, pkgdmp.WithNoDocs())
 	}
 
-	if cfg.Exclude != "" {
-		p, err := regexp.Compile(cfg.Exclude)
-		if err != nil {
-			return pkgdmp.ParserOptions{}, fmt.Errorf("parsing exclude regular expression: %w", err)
-		}
+	filters, err := filtersFromCfg(cfg)
+	if err != nil {
+		return nil, err
+	}
 
-		opts.ExcludeRegexp = p
+	if len(filters) != 0 {
+		opts = append(opts, pkgdmp.WithSymbolFilters(filters...))
 	}
 
 	return opts, nil
+}
+
+func filtersFromCfg(cfg *Config) ([]pkgdmp.SymbolFilter, error) {
+	var filters []pkgdmp.SymbolFilter
+
+	if !cfg.Unexported {
+		filters = append(filters, pkgdmp.FilterUnexported(pkgdmp.Exclude))
+	}
+
+	if cfg.Exclude != "" {
+		st, err := strToSymbolTypes(cfg.Exclude)
+		if err != nil {
+			return nil, fmt.Errorf("parsing symbol types: %w", err)
+		}
+
+		filters = append(filters, pkgdmp.FilterSymbolTypes(pkgdmp.Exclude, st...))
+	}
+
+	if cfg.Only != "" {
+		st, err := strToSymbolTypes(cfg.Exclude)
+		if err != nil {
+			return nil, fmt.Errorf("parsing symbol types: %w", err)
+		}
+
+		filters = append(filters, pkgdmp.FilterSymbolTypes(pkgdmp.Include, st...))
+	}
+
+	if cfg.Matching != "" {
+		p, err := regexp.Compile(cfg.Matching)
+		if err != nil {
+			return nil, fmt.Errorf("parsing matching regular expression: %w", err)
+		}
+
+		filters = append(filters, pkgdmp.FilterMatchingIdents(pkgdmp.Include, p))
+	}
+
+	if cfg.ExcludeMatching != "" {
+		p, err := regexp.Compile(cfg.ExcludeMatching)
+		if err != nil {
+			return nil, fmt.Errorf("parsing exclude matching regular expression: %w", err)
+		}
+
+		filters = append(filters, pkgdmp.FilterMatchingIdents(pkgdmp.Exclude, p))
+	}
+
+	if cfg.ExcludePackages != "" {
+		names := strToSlice(cfg.ExcludePackages)
+
+		filters = append(filters, pkgdmp.FilterPackages(pkgdmp.Exclude, names...))
+	}
+
+	if cfg.OnlyPackages != "" {
+		names := strToSlice(cfg.ExcludePackages)
+
+		filters = append(filters, pkgdmp.FilterPackages(pkgdmp.Include, names...))
+	}
+
+	return filters, nil
 }
 
 func initFlagSet(cfg *Config, output io.Writer) {
@@ -134,44 +196,41 @@ func initFlagSet(cfg *Config, output io.Writer) {
 	flagSet.SetOutput(output)
 	flagSet.Usage = usage
 
-	flagSet.StringVar(&cfg.Match, "match", "",
-		flagDescf("Match", "only include entities with names matching regular expression"),
+	flagSet.StringVar(&cfg.Matching, "matching", "",
+		flagDescf("Matching", "only include symbol with names matching regular expression"),
+	)
+	flagSet.StringVar(&cfg.ExcludeMatching, "exclude-matching", "",
+		flagDescf("ExcludeMatching", "exclude symbols with names matching regular expression"),
+	)
+	flagSet.BoolVar(&cfg.Unexported, "unexported", false,
+		flagDescf("Unexported", "include unexported entities"),
+	)
+	flagSet.StringVar(&cfg.Only, "only", "",
+		flagDescf("Only", "comma-separated list of symbol types to include"),
 	)
 	flagSet.StringVar(&cfg.Exclude, "exclude", "",
-		flagDescf("Exclude", "exclude entities with names matching regular expression"),
+		flagDescf("Exclude", "comma-separated list of symbol types to exclude"),
+	)
+	flagSet.StringVar(&cfg.ExcludePackages, "exclude-packages", "",
+		flagDescf("ExcludePackages", "comma-separated list of package names to exclude"),
+	)
+	flagSet.StringVar(&cfg.OnlyPackages, "only-packages", "",
+		flagDescf("OnlyPackages", "comma-separated list of package names to include"),
+	)
+	flagSet.BoolVar(&cfg.NoDocs, "no-docs", false,
+		flagDescf("NoDocs", "exclude doc comments"),
+	)
+	flagSet.BoolVar(&cfg.FullDocs, "full-docs", false,
+		flagDescf("FullDocs", "include full doc comments instead of synopsis"),
 	)
 	flagSet.StringVar(&cfg.Theme, "theme", defaultTheme,
 		flagDescf("Theme", "syntax highlighting theme to use - see %s", themesURL),
-	)
-	flagSet.BoolVar(&cfg.NoFuncTypes, "no-func-types", false,
-		flagDescf("NoFuncTypes", "exclude function types"),
-	)
-	flagSet.BoolVar(&cfg.NoDoc, "no-doc", false,
-		flagDescf("NoDoc", "exclude doc comments"),
 	)
 	flagSet.BoolVar(&cfg.JSON, "json", false,
 		flagDescf("JSON", "output as JSON"),
 	)
 	flagSet.BoolVar(&cfg.NoEnv, "no-env", false,
 		fmt.Sprintf("skip loading of configuration from '%s_*' environment variables", flagEnvPrfx),
-	)
-	flagSet.BoolVar(&cfg.NoFuncs, "no-funcs", false,
-		flagDescf("NoFuncs", "exclude functions"),
-	)
-	flagSet.BoolVar(&cfg.NoHighlight, "no-highlight", false,
-		flagDescf("NoHighlight", "skip source code highlighting"),
-	)
-	flagSet.BoolVar(&cfg.NoInterfaces, "no-interfaces", false,
-		flagDescf("NoInterfaces", "exclude interfaces"),
-	)
-	flagSet.BoolVar(&cfg.NoStructs, "no-structs", false,
-		flagDescf("NoStructs", "exclude structs"),
-	)
-	flagSet.BoolVar(&cfg.FullDoc, "full-doc", false,
-		flagDescf("FullDoc", "include full doc comments instead of synopsis"),
-	)
-	flagSet.BoolVar(&cfg.Unexported, "unexported", false,
-		flagDescf("Unexported", "include unexported entities"),
 	)
 	flagSet.BoolVar(&cfg.Version, "version", false, "print version information and exit")
 }
@@ -296,4 +355,45 @@ func usage() {
 		AppName, Version(), AppName,
 	)
 	flagSet.PrintDefaults()
+	fmt.Fprintf(flagSet.Output(), "\nSYMBOL TYPES:\n\n  %s\n\n", strings.Join(supportedSymbolTypes(), ", "))
+}
+
+func strToSymbolTypes(list string) ([]pkgdmp.SymbolType, error) {
+	ss := strings.Split(list, ",")
+	res := make([]pkgdmp.SymbolType, len(ss))
+
+	for i, s := range ss {
+		s = strings.TrimSpace(strings.ToLower(s))
+
+		st, ok := symbolTypeMap[s]
+		if !ok {
+			return nil, fmt.Errorf("unsupported symbol type string: %q", s)
+		}
+
+		res[i] = st
+	}
+
+	return res, nil
+}
+
+func strToSlice(list string) []string {
+	ss := strings.Split(list, ",")
+
+	for i, s := range ss {
+		ss[i] = strings.TrimSpace(s)
+	}
+
+	return ss
+}
+
+func supportedSymbolTypes() []string {
+	res := make([]string, 0, len(symbolTypeMap))
+
+	for stStr := range symbolTypeMap {
+		res = append(res, stStr)
+	}
+
+	sort.Strings(res)
+
+	return res
 }

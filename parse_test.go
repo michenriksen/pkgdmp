@@ -32,7 +32,7 @@ type parserTestCase struct {
 	name       string
 	sourceFile string // File in testdata/source or empty for default.
 	goldenFile string // File in testdata/golden or empty for default.
-	opts       pkgdmp.ParserOptions
+	opts       []pkgdmp.ParserOption
 }
 
 func TestMain(m *testing.M) {
@@ -44,13 +44,17 @@ func TestMain(m *testing.M) {
 }
 
 func TestParser_GoldenFiles_Unique(t *testing.T) {
+	if *updateGolden {
+		t.Skip("golden files are being updated")
+	}
+
 	files, err := filepath.Glob(filepath.Join("testdata", "golden", "parser_*.golden"))
 	if err != nil {
 		t.Fatalf("error getting golden files list: %v", err)
 	}
 
 	if len(files) == 0 {
-		t.Skipf("no golden files found")
+		t.Skip("no golden files found")
 	}
 
 	hMap := make(map[string]string)
@@ -90,49 +94,79 @@ func TestParser_Package(t *testing.T) {
 	tt := []*parserTestCase{
 		{
 			name: "default options",
-			opts: pkgdmp.ParserOptions{},
+			opts: nil,
 		},
 		{
 			name: "full doc comments",
-			opts: pkgdmp.ParserOptions{FullDocs: true},
-		},
-		{
-			name: "include unexported",
-			opts: pkgdmp.ParserOptions{Unexported: true},
+			opts: []pkgdmp.ParserOption{pkgdmp.WithFullDocs()},
 		},
 		{
 			name: "exclude doc comments",
-			opts: pkgdmp.ParserOptions{ExcludeDocs: true},
+			opts: []pkgdmp.ParserOption{pkgdmp.WithNoDocs()},
+		},
+		{
+			name: "exclude unexported",
+			opts: []pkgdmp.ParserOption{
+				pkgdmp.WithSymbolFilters(
+					pkgdmp.FilterUnexported(pkgdmp.Exclude),
+				),
+			},
 		},
 		{
 			name: "exclude structs",
-			opts: pkgdmp.ParserOptions{ExcludeStructs: true},
+			opts: []pkgdmp.ParserOption{
+				pkgdmp.WithSymbolFilters(
+					pkgdmp.FilterSymbolTypes(pkgdmp.Exclude, pkgdmp.SymbolStructType),
+				),
+			},
 		},
 		{
 			name: "exclude funcs",
-			opts: pkgdmp.ParserOptions{ExcludeFuncs: true},
+			opts: []pkgdmp.ParserOption{
+				pkgdmp.WithSymbolFilters(
+					pkgdmp.FilterSymbolTypes(pkgdmp.Exclude, pkgdmp.SymbolFunc),
+				),
+			},
 		},
 		{
 			name: "exclude func types",
-			opts: pkgdmp.ParserOptions{ExcludeFuncTypes: true},
+			opts: []pkgdmp.ParserOption{
+				pkgdmp.WithSymbolFilters(
+					pkgdmp.FilterSymbolTypes(pkgdmp.Exclude, pkgdmp.SymbolFuncType),
+				),
+			},
 		},
 		{
 			name: "exclude interfaces",
-			opts: pkgdmp.ParserOptions{ExcludeInterfaces: true},
+			opts: []pkgdmp.ParserOption{
+				pkgdmp.WithSymbolFilters(
+					pkgdmp.FilterSymbolTypes(pkgdmp.Exclude, pkgdmp.SymbolInterfaceType),
+				),
+			},
 		},
 		{
-			name: "only regexp",
-			opts: pkgdmp.ParserOptions{OnlyRegexp: regexp.MustCompile(`^My(Other)?Function$`)},
+			name: "matching idents",
+			opts: []pkgdmp.ParserOption{
+				pkgdmp.WithSymbolFilters(
+					pkgdmp.FilterMatchingIdents(pkgdmp.Include, regexp.MustCompile(`^My(Other)?Function$`)),
+				),
+			},
 		},
 		{
-			name: "exclude regexp",
-			opts: pkgdmp.ParserOptions{Unexported: true, ExcludeRegexp: regexp.MustCompile(`my\w+Interface`)},
+			name: "exclude matching idents",
+			opts: []pkgdmp.ParserOption{
+				pkgdmp.WithSymbolFilters(
+					pkgdmp.FilterMatchingIdents(pkgdmp.Exclude, regexp.MustCompile(`my\w+Interface`)),
+				),
+			},
 		},
 		{
-			name: "only and exclude regexp",
-			opts: pkgdmp.ParserOptions{
-				OnlyRegexp:    regexp.MustCompile(`^My\w*Function$`),
-				ExcludeRegexp: regexp.MustCompile(`^MyOtherFunction$`),
+			name: "match and exclude match pattern",
+			opts: []pkgdmp.ParserOption{
+				pkgdmp.WithSymbolFilters(
+					pkgdmp.FilterMatchingIdents(pkgdmp.Include, regexp.MustCompile(`^My\w*Function$`)),
+					pkgdmp.FilterMatchingIdents(pkgdmp.Exclude, regexp.MustCompile(`^MyOtherFunction$`)),
+				),
 			},
 		},
 	}
@@ -149,7 +183,7 @@ func TestParser_Package(t *testing.T) {
 func (tc *parserTestCase) run(tb *testing.T) {
 	tb.Helper()
 
-	pkgParser := pkgdmp.NewParser(tc.opts)
+	pkgParser, _ := pkgdmp.NewParser(tc.opts...)
 
 	pkg, err := pkgParser.Package(tc.pkgDoc(tb))
 	if err != nil {

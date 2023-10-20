@@ -29,7 +29,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	pkgParser := pkgdmp.NewParser(pkgParserOpts)
+	pkgParser, err := pkgdmp.NewParser(pkgParserOpts...)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	unparsed, err := getPackages(cfg.Dirs)
 	if err != nil {

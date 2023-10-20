@@ -97,5 +97,5 @@ func printNodes(nodes any) string {
 
 	printer.Fprint(&b, fset, nodes)
 
-	return b.String()
+	return strings.TrimSpace(b.String())
 }

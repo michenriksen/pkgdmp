@@ -5,7 +5,7 @@ import (
 	"go/ast"
 	"go/doc"
 	"go/token"
-	"regexp"
+	"hash/fnv"
 	"strings"
 )
 
@@ -17,27 +17,30 @@ var typeNames = map[token.Token]string{
 	token.STRING: "string",
 }
 
-// ParserOptions represents the options for [Parser].
-type ParserOptions struct {
-	ExcludeRegexp     *regexp.Regexp // Don't parse entities with names matching regexp.
-	OnlyRegexp        *regexp.Regexp // Only parse entities with names matching regexp.
-	ExcludeDocs       bool           // Don't parse entity doc comments.
-	ExcludeFuncTypes  bool           // Don't parse function types.
-	ExcludeFuncs      bool           // Don't parse functions.
-	ExcludeInterfaces bool           // Don't parse interfaces.
-	ExcludeStructs    bool           // Don't parse structs.
-	FullDocs          bool           // Include full doc comments instead of synopsis.
-	Unexported        bool           // Parse unexported entities.
+// ParserOption configures a [Parser].
+type ParserOption interface {
+	Fingerprint() uint64
+	apply(*Parser) error
 }
 
 // Parser parses go packages to simple structs.
 type Parser struct {
-	opts ParserOptions
+	filters  []SymbolFilter
+	fullDocs bool
+	noDocs   bool
 }
 
-// NewParser returns a parser configured with opts.
-func NewParser(opts ParserOptions) *Parser {
-	return &Parser{opts: opts}
+// NewParser returns a parser configured with options.
+func NewParser(opts ...ParserOption) (*Parser, error) {
+	p := &Parser{}
+
+	for _, opt := range opts {
+		if err := opt.apply(p); err != nil {
+			return nil, fmt.Errorf("applying parser option: %w", err)
+		}
+	}
+
+	return p, nil
 }
 
 // Package parses dPkg to a simplified [Package].
@@ -64,7 +67,12 @@ func (p *Parser) Package(dPkg *doc.Package) (*Package, error) {
 
 func (p *Parser) parseConsts(pkg *Package, cnsts []*doc.Value) error {
 	for _, dVal := range cnsts {
-		pkg.Consts = append(pkg.Consts, p.parseConst(dVal))
+		cg := p.parseConst(dVal)
+		if len(cg.Consts) == 0 {
+			continue
+		}
+
+		pkg.Consts = append(pkg.Consts, cg)
 	}
 
 	return nil
@@ -79,14 +87,14 @@ func (p *Parser) parseConst(dVal *doc.Value) ConstGroup {
 			panic(fmt.Errorf("unsupported const spec type %T", s))
 		}
 
-		if !p.includeIdent(vs.Names[0].Name) {
-			continue
-		}
-
 		c := Const{
 			Names:   identNames(vs.Names),
 			Values:  make([]Value, 0, len(vs.Values)),
 			valSpec: vs,
+		}
+
+		if !p.includeSymbol(c) {
+			continue
 		}
 
 		for _, v := range vs.Values {
@@ -124,16 +132,13 @@ func (p *Parser) parseConst(dVal *doc.Value) ConstGroup {
 }
 
 func (p *Parser) parseFuncs(pkg *Package, fns []*doc.Func) error {
-	if p.opts.ExcludeFuncs {
-		return nil
-	}
-
 	for _, fn := range fns {
-		if !p.includeIdent(fn.Name) {
+		pfn := p.parseFunc(fn)
+		if !p.includeSymbol(pfn) {
 			continue
 		}
 
-		pkg.Funcs = append(pkg.Funcs, p.parseFunc(fn))
+		pkg.Funcs = append(pkg.Funcs, pfn)
 	}
 
 	return nil
@@ -151,10 +156,6 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				continue
 			}
 
-			if !p.includeType(typeSpec) {
-				continue
-			}
-
 			td := TypeDef{
 				Name: t.Name,
 				Doc:  p.mkDoc(t.Doc),
@@ -168,20 +169,12 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				return fmt.Errorf("parsing functions for %s type: %w", t.Name, err)
 			}
 
-			for _, m := range t.Methods {
-				if !p.includeMethod(m.Name) {
-					continue
-				}
-
-				td.Methods = append(td.Methods, p.parseFunc(m))
-			}
-
 			switch ts := typeSpec.Type.(type) {
 			case *ast.Ident:
 				td.Type = ts.Name
 			case *ast.StructType:
 				td.Type = "struct"
-				td.Fields = p.parseStructFieldList(ts.Fields)
+				td.Fields = p.parseFieldList(ts.Fields, SymbolStructField)
 			case *ast.InterfaceType:
 				td.Type = "interface"
 
@@ -194,8 +187,8 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 
 						f := Func{
 							Name:    m.Names[0].Name,
-							Params:  p.parseFieldList(ft.Params),
-							Results: p.parseFieldList(ft.Results),
+							Params:  p.parseFieldList(ft.Params, SymbolParamField),
+							Results: p.parseFieldList(ft.Results, SymbolResultField),
 							funcKw:  false,
 						}
 
@@ -212,8 +205,8 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				}
 			case *ast.FuncType:
 				td.Type = "func"
-				td.Params = p.parseFieldList(ts.Params)
-				td.Results = p.parseFieldList(ts.Results)
+				td.Params = p.parseFieldList(ts.Params, SymbolParamField)
+				td.Results = p.parseFieldList(ts.Results, SymbolResultField)
 			case *ast.MapType:
 				td.Type = "map"
 				td.Key = printNodes(ts.Key)
@@ -239,6 +232,19 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				continue
 			}
 
+			if !p.includeSymbol(td) {
+				continue
+			}
+
+			for _, m := range t.Methods {
+				pm := p.parseFunc(m)
+				if !p.includeSymbol(pm) {
+					continue
+				}
+
+				td.Methods = append(td.Methods, pm)
+			}
+
 			pkg.Types = append(pkg.Types, td)
 		}
 	}
@@ -256,36 +262,22 @@ func (p *Parser) parseFunc(df *doc.Func) Func {
 	}
 
 	if decl.Recv != nil && decl.Recv.NumFields() != 0 {
-		fr := p.parseField(decl.Recv.List[0])
+		fr := p.parseField(decl.Recv.List[0], SymbolReceiverField)
 		fn.Receiver = &fr
 	}
 
 	if decl.Type.Params != nil && decl.Type.Params.NumFields() != 0 {
-		fn.Params = p.parseFieldList(decl.Type.Params)
+		fn.Params = p.parseFieldList(decl.Type.Params, SymbolParamField)
 	}
 
 	if decl.Type.Results != nil && decl.Type.Results.NumFields() != 0 {
-		fn.Results = p.parseFieldList(decl.Type.Results)
+		fn.Results = p.parseFieldList(decl.Type.Results, SymbolResultField)
 	}
 
 	return fn
 }
 
-func (p *Parser) parseFieldList(fl *ast.FieldList) []Field {
-	if fl == nil {
-		return nil
-	}
-
-	res := make([]Field, len(fl.List))
-
-	for i, f := range fl.List {
-		res[i] = p.parseField(f)
-	}
-
-	return res
-}
-
-func (p *Parser) parseStructFieldList(fl *ast.FieldList) []Field {
+func (p *Parser) parseFieldList(fl *ast.FieldList, st SymbolType) []Field {
 	if fl == nil {
 		return nil
 	}
@@ -293,20 +285,22 @@ func (p *Parser) parseStructFieldList(fl *ast.FieldList) []Field {
 	res := make([]Field, 0, len(fl.List))
 
 	for _, f := range fl.List {
-		if !p.includeStructField(f.Names[0].Name) {
+		pf := p.parseField(f, st)
+		if !p.includeSymbol(pf) {
 			continue
 		}
 
-		res = append(res, p.parseField(f))
+		res = append(res, pf)
 	}
 
 	return res
 }
 
-func (p *Parser) parseField(af *ast.Field) Field {
+func (p *Parser) parseField(af *ast.Field, st SymbolType) Field {
 	f := Field{
-		Names: identNames(af.Names),
-		Type:  printNodes(af.Type),
+		Names:      identNames(af.Names),
+		Type:       printNodes(af.Type),
+		symbolType: st,
 	}
 
 	if af.Doc != nil {
@@ -320,52 +314,100 @@ func (p *Parser) parseField(af *ast.Field) Field {
 	return f
 }
 
-func (p *Parser) includeIdent(name string) bool {
-	if !isExportedIdent(name) && !p.opts.Unexported {
-		return false
+func (p *Parser) includeSymbol(s Symbol) bool {
+	for _, f := range p.filters {
+		if !f.Include(s) {
+			return false
+		}
 	}
 
-	return (p.opts.OnlyRegexp == nil || p.opts.OnlyRegexp.MatchString(name)) &&
-		(p.opts.ExcludeRegexp == nil || !p.opts.ExcludeRegexp.MatchString(name))
-}
-
-func (p *Parser) includeType(at *ast.TypeSpec) bool {
-	if !p.includeIdent(at.Name.Name) {
-		return false
-	}
-
-	switch at.Type.(type) {
-	case *ast.StructType:
-		return !p.opts.ExcludeStructs
-	case *ast.FuncType:
-		return !p.opts.ExcludeFuncTypes
-	case *ast.InterfaceType:
-		return !p.opts.ExcludeInterfaces
-	default:
-		return true
-	}
-}
-
-func (p *Parser) includeMethod(name string) bool {
-	return isExportedIdent(name) || p.opts.Unexported
-}
-
-func (p *Parser) includeStructField(name string) bool {
-	return isExportedIdent(name) || p.opts.Unexported
+	return true
 }
 
 func (p *Parser) mkDoc(fullDoc string) string {
-	if p.opts.ExcludeDocs {
+	fullDoc = strings.TrimSpace(fullDoc)
+
+	if p.noDocs {
 		return ""
 	}
 
 	fullDoc = strings.TrimPrefix(strings.TrimSpace(fullDoc), "// ")
 
-	if p.opts.FullDocs {
+	if p.fullDocs {
 		return fullDoc
 	}
 
 	pkg := doc.Package{}
 
 	return pkg.Synopsis(fullDoc)
+}
+
+// WithFullDocs configures a [Parser] to include full doc comments instead of
+// short synopsis comments.
+func WithFullDocs() ParserOption {
+	return &fullDocs{}
+}
+
+type fullDocs struct{}
+
+func (*fullDocs) apply(p *Parser) error {
+	p.fullDocs = true
+	return nil
+}
+
+func (*fullDocs) Fingerprint() uint64 {
+	h := fnv.New64a()
+
+	h.Sum([]byte("fullDocs"))
+
+	return h.Sum64()
+}
+
+// WithNoDocs configures a [Parser] to not include any doc comments for symbols.
+func WithNoDocs() ParserOption {
+	return &noDocs{}
+}
+
+type noDocs struct{}
+
+func (*noDocs) apply(p *Parser) error {
+	p.noDocs = true
+	return nil
+}
+
+func (*noDocs) Fingerprint() uint64 {
+	h := fnv.New64a()
+
+	h.Sum([]byte("noDocs"))
+
+	return h.Sum64()
+}
+
+// WithSymbolFilters configures a [Parser] to filter package symbols with
+// provided filter functions.
+func WithSymbolFilters(filters ...SymbolFilter) ParserOption {
+	return &symbolFilters{f: filters}
+}
+
+type symbolFilters struct {
+	f []SymbolFilter
+}
+
+func (sf *symbolFilters) apply(p *Parser) error {
+	p.filters = sf.f
+	return nil
+}
+
+func (sf *symbolFilters) Fingerprint() uint64 {
+	h := fnv.New64a()
+
+	h.Sum([]byte("symbolFilters"))
+
+	sum := h.Sum64()
+
+	for _, f := range sf.f {
+		sum += f.Fingerprint()
+	}
+
+	return sum
 }

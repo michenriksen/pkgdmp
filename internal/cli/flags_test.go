@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/michenriksen/pkgdmp"
 	"github.com/michenriksen/pkgdmp/internal/cli"
 )
 
@@ -39,19 +38,19 @@ func TestParseFlags(t *testing.T) {
 		},
 		{
 			name:         "flags but no directories",
-			args:         []string{"-unexported", "-full-doc"},
+			args:         []string{"-unexported", "-full-docs"},
 			wantExitCode: 1,
 			wantErr:      cli.ErrNoDirs,
 		},
 		{
 			name: "flags and directories",
-			args: []string{"-unexported", "-no-doc", "-no-interfaces", "directory1", "directory2"},
+			args: []string{"-unexported", "-no-docs", "-exclude=interfaces", "directory1", "directory2"},
 			wantCfg: &cli.Config{
-				Unexported:   true,
-				NoDoc:        true,
-				NoInterfaces: true,
-				Dirs:         []string{"directory1", "directory2"},
-				Theme:        "swapoff",
+				Unexported: true,
+				NoDocs:     true,
+				Exclude:    "interfaces",
+				Dirs:       []string{"directory1", "directory2"},
+				Theme:      "swapoff",
 			},
 		},
 	}
@@ -81,38 +80,35 @@ func TestParseFlags(t *testing.T) {
 
 func TestParserOptsFromCfg(t *testing.T) {
 	tt := []struct {
-		name          string
-		cfg           *cli.Config
-		wantOpts      pkgdmp.ParserOptions
-		wantErrRegexp *regexp.Regexp
+		name                string
+		cfg                 *cli.Config
+		wantOptFingerprints []uint64
+		wantErrRegexp       *regexp.Regexp
 	}{
 		{
-			name:     "default config",
-			cfg:      &cli.Config{},
-			wantOpts: pkgdmp.ParserOptions{},
+			name:                "default config",
+			cfg:                 &cli.Config{},
+			wantOptFingerprints: []uint64{2070688686324183492},
 		},
 		{
-			name:     "full docs and exclude interfaces",
-			cfg:      &cli.Config{FullDoc: true, NoInterfaces: true},
-			wantOpts: pkgdmp.ParserOptions{FullDocs: true, ExcludeInterfaces: true},
+			name:                "full docs and exclude interfaces",
+			cfg:                 &cli.Config{FullDocs: true, Exclude: "interface"},
+			wantOptFingerprints: []uint64{14695981039346656037, 4573527031645899146},
 		},
 		{
-			name: "match and exclude patterns",
-			cfg:  &cli.Config{Match: `^FooBa(r|z)`, Exclude: `(Hello|Hi)World`},
-			wantOpts: pkgdmp.ParserOptions{
-				OnlyRegexp:    regexp.MustCompile(`^FooBa(r|z)`),
-				ExcludeRegexp: regexp.MustCompile(`(Hello|Hi)World`),
-			},
+			name:                "match and exclude patterns",
+			cfg:                 &cli.Config{Matching: `^FooBa(r|z)`, ExcludeMatching: `(Hello|Hi)World`},
+			wantOptFingerprints: []uint64{14104148152248147676},
 		},
 		{
 			name:          "invalid match regexp",
-			cfg:           &cli.Config{Match: `a\x{2`},
-			wantErrRegexp: regexp.MustCompile(`parsing match regular expression:.*invalid escape sequence`),
+			cfg:           &cli.Config{Matching: `a\x{2`},
+			wantErrRegexp: regexp.MustCompile(`parsing matching regular expression:.*invalid escape sequence`),
 		},
 		{
 			name:          "invalid exclude regexp",
-			cfg:           &cli.Config{Exclude: `a\x{2`},
-			wantErrRegexp: regexp.MustCompile(`parsing exclude regular expression:.*invalid escape sequence`),
+			cfg:           &cli.Config{ExcludeMatching: `a\x{2`},
+			wantErrRegexp: regexp.MustCompile(`parsing exclude matching regular expression:.*invalid escape sequence`),
 		},
 	}
 
@@ -120,13 +116,28 @@ func TestParserOptsFromCfg(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			opts, err := cli.ParserOptsFromCfg(tc.cfg)
 
-			if !reflect.DeepEqual(opts, tc.wantOpts) {
-				t.Errorf("expected options:\n\n%#v\n\nbut got:\n\n%#v\n\n", tc.wantOpts, opts)
+			if fpLen := len(tc.wantOptFingerprints); fpLen != 0 {
+				optsLen := len(opts)
+
+				if optsLen != fpLen {
+					t.Fatalf("expected option length to be %d, but got %d", fpLen, optsLen)
+				}
+
+				for i, opt := range opts {
+					wantFp := tc.wantOptFingerprints[i]
+					actualFp := opt.Fingerprint()
+
+					if actualFp != wantFp {
+						t.Fatalf("expected option at index %d to have fingerprint %d, but has %d",
+							i, wantFp, actualFp,
+						)
+					}
+				}
 			}
 
 			if tc.wantErrRegexp != nil {
 				if err == nil {
-					t.Errorf("expected error matching regular expression `%s`, but got no error", tc.wantErrRegexp)
+					t.Fatalf("expected error matching regular expression `%s`, but got no error", tc.wantErrRegexp)
 				}
 
 				if !tc.wantErrRegexp.MatchString(err.Error()) {
