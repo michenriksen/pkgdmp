@@ -163,17 +163,17 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				continue
 			}
 
-			td := TypeDef{
-				Name: t.Name,
-				Doc:  p.mkDoc(t.Doc),
-			}
-
 			if err := p.parseConsts(pkg, t.Consts); err != nil {
 				return fmt.Errorf("parsing consts for %s type: %w", t.Name, err)
 			}
 
 			if err := p.parseFuncs(pkg, t.Funcs); err != nil {
 				return fmt.Errorf("parsing functions for %s type: %w", t.Name, err)
+			}
+
+			td := TypeDef{
+				Name: t.Name,
+				Doc:  p.mkDoc(t.Doc),
 			}
 
 			switch ts := typeSpec.Type.(type) {
@@ -239,9 +239,7 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 				continue
 			}
 
-			if !p.includeSymbol(td) {
-				continue
-			}
+			methods := make([]Func, 0, len(t.Methods))
 
 			for _, m := range t.Methods {
 				pm := p.parseFunc(m)
@@ -249,9 +247,15 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 					continue
 				}
 
-				td.Methods = append(td.Methods, pm)
+				methods = append(methods, pm)
 			}
 
+			if !p.includeSymbol(td) {
+				pkg.Funcs = append(pkg.Funcs, methods...)
+				continue
+			}
+
+			td.Methods = methods
 			pkg.Types = append(pkg.Types, td)
 		}
 	}
