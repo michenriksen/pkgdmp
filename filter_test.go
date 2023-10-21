@@ -20,6 +20,7 @@ var symbolTypes = []pkgdmp.SymbolType{
 	pkgdmp.SymbolChanType,
 	pkgdmp.SymbolArrayType,
 	pkgdmp.SymbolFunc,
+	pkgdmp.SymbolMethod,
 	pkgdmp.SymbolStructField,
 }
 
@@ -72,6 +73,7 @@ func TestFilterSymbolTypes(t *testing.T) {
 		newSymbol(t, "myChan", pkgdmp.SymbolChanType),
 		newSymbol(t, "MyArray", pkgdmp.SymbolArrayType),
 		newSymbol(t, "MyFunc", pkgdmp.SymbolFunc),
+		newSymbol(t, "MyMethod", pkgdmp.SymbolMethod),
 	}
 
 	t.Run("returns true when all symbol types are included", func(t *testing.T) {

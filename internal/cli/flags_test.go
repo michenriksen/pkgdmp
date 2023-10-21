@@ -44,11 +44,11 @@ func TestParseFlags(t *testing.T) {
 		},
 		{
 			name: "flags and directories",
-			args: []string{"-unexported", "-no-docs", "-exclude=interfaces", "directory1", "directory2"},
+			args: []string{"-unexported", "-no-docs", "-exclude=interface", "directory1", "directory2"},
 			wantCfg: &cli.Config{
 				Unexported: true,
 				NoDocs:     true,
-				Exclude:    "interfaces",
+				Exclude:    "interface",
 				Dirs:       []string{"directory1", "directory2"},
 				Theme:      "swapoff",
 			},

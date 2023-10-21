@@ -150,6 +150,10 @@ func (f *filterSymbolTypes) Include(s Symbol) bool {
 		return true
 	}
 
+	if s.SymbolType() == SymbolStructField {
+		return true
+	}
+
 	_, ok := f.stMap[s.SymbolType()]
 
 	if f.action == Include {
@@ -184,6 +188,10 @@ type filterMatchingIdents struct {
 
 func (f *filterMatchingIdents) Include(s Symbol) bool {
 	if isUnfilterable(s) {
+		return true
+	}
+
+	if s.SymbolType() == SymbolStructField {
 		return true
 	}
 

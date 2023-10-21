@@ -149,7 +149,7 @@ func filtersFromCfg(cfg *Config) ([]pkgdmp.SymbolFilter, error) {
 	}
 
 	if cfg.Only != "" {
-		st, err := strToSymbolTypes(cfg.Exclude)
+		st, err := strToSymbolTypes(cfg.Only)
 		if err != nil {
 			return nil, fmt.Errorf("parsing symbol types: %w", err)
 		}
