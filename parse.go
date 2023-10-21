@@ -136,7 +136,7 @@ func (p *Parser) parseConst(dVal *doc.Value) ConstGroup {
 
 func (p *Parser) parseFuncs(pkg *Package, fns []*doc.Func) error {
 	for _, fn := range fns {
-		pfn := p.parseFunc(fn)
+		pfn := p.parseFunc(fn, SymbolFunc)
 		if !p.includeSymbol(pfn) {
 			continue
 		}
@@ -189,10 +189,11 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 						}
 
 						f := Func{
-							Name:    m.Names[0].Name,
-							Params:  p.parseFieldList(ft.Params, SymbolParamField),
-							Results: p.parseFieldList(ft.Results, SymbolResultField),
-							funcKw:  false,
+							Name:       m.Names[0].Name,
+							Params:     p.parseFieldList(ft.Params, SymbolParamField),
+							Results:    p.parseFieldList(ft.Results, SymbolResultField),
+							funcKw:     false,
+							symbolType: SymbolMethod,
 						}
 
 						if m.Doc != nil {
@@ -238,7 +239,7 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 			methods := make([]Func, 0, len(t.Methods))
 
 			for _, m := range t.Methods {
-				pm := p.parseFunc(m)
+				pm := p.parseFunc(m, SymbolMethod)
 				if !p.includeSymbol(pm) {
 					continue
 				}
@@ -259,13 +260,18 @@ func (p *Parser) parseTypes(pkg *Package, types []*doc.Type) error {
 	return nil
 }
 
-func (p *Parser) parseFunc(df *doc.Func) Func {
+func (p *Parser) parseFunc(df *doc.Func, st SymbolType) Func {
+	if st != SymbolFunc && st != SymbolMethod {
+		panic(fmt.Errorf("symbol type must be %v or %v for Func", SymbolFunc, SymbolMethod))
+	}
+
 	decl := df.Decl
 
 	fn := Func{
-		Name:   df.Name,
-		Doc:    p.mkDoc(df.Doc),
-		funcKw: decl.Type.Func != token.NoPos,
+		Name:       df.Name,
+		Doc:        p.mkDoc(df.Doc),
+		funcKw:     decl.Type.Func != token.NoPos,
+		symbolType: st,
 	}
 
 	if decl.Recv != nil && decl.Recv.NumFields() != 0 {
@@ -285,6 +291,12 @@ func (p *Parser) parseFunc(df *doc.Func) Func {
 }
 
 func (p *Parser) parseFieldList(fl *ast.FieldList, st SymbolType) []Field {
+	if !isFieldSymbolType(st) {
+		panic(fmt.Errorf("symbol type must be %v, %v, %v, or %v for Field",
+			SymbolStructField, SymbolPackage, SymbolResultField, SymbolReceiverField),
+		)
+	}
+
 	if fl == nil {
 		return nil
 	}

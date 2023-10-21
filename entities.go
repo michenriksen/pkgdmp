@@ -168,13 +168,14 @@ type Value struct {
 // Func represents a function or a struct method if the Receiver field contains
 // a pointer to a [FuncReceiver].
 type Func struct {
-	Receiver *Field  `json:"receiver,omitempty"`
-	Name     string  `json:"name"`
-	Doc      string  `json:"doc,omitempty"`
-	Comment  string  `json:"comment,omitempty"`
-	Params   []Field `json:"params,omitempty"`
-	Results  []Field `json:"results,omitempty"`
-	funcKw   bool
+	Receiver   *Field  `json:"receiver,omitempty"`
+	Name       string  `json:"name"`
+	Doc        string  `json:"doc,omitempty"`
+	Comment    string  `json:"comment,omitempty"`
+	Params     []Field `json:"params,omitempty"`
+	Results    []Field `json:"results,omitempty"`
+	funcKw     bool
+	symbolType SymbolType
 }
 
 // Ident returns the function's name.
@@ -187,9 +188,9 @@ func (f Func) IsExported() bool {
 	return isExportedIdent(f.Name)
 }
 
-// SymbolType returns [SymbolFunc].
-func (Func) SymbolType() SymbolType {
-	return SymbolFunc
+// SymbolType returns [SymbolFunc] or [SymbolMethod].
+func (f Func) SymbolType() SymbolType {
+	return f.symbolType
 }
 
 // Print writes unformatted function signature code to writer.

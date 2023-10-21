@@ -42,6 +42,7 @@ const (
 	SymbolChanType                 // `type MyChan chan ...`
 	SymbolArrayType                // `type MyArray []string`
 	SymbolFunc                     // `func MyFunc(...) { ... }`
+	SymbolMethod                   // `func (...) MyMethod(...) { ... }`
 	SymbolStructField              // Struct field.
 	SymbolParamField               // Function parameter field.
 	SymbolResultField              // Function result field.
@@ -71,6 +72,7 @@ func (st SymbolType) String() string {
 		"SymbolChanType",
 		"SymbolArrayType",
 		"SymbolFunc",
+		"SymbolMethod",
 		"SymbolStructField",
 		"SymbolParamField",
 		"SymbolResultField",

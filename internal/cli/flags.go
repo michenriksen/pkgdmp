@@ -38,6 +38,7 @@ var symbolTypeMap = map[string]pkgdmp.SymbolType{
 	"identType": pkgdmp.SymbolIdentType,
 	"interface": pkgdmp.SymbolInterfaceType,
 	"mapType":   pkgdmp.SymbolMapType,
+	"method":    pkgdmp.SymbolMethod,
 	"struct":    pkgdmp.SymbolStructType,
 }
 

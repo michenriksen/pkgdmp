@@ -8,6 +8,13 @@ import (
 	"strings"
 )
 
+var fieldSTMap = map[SymbolType]struct{}{
+	SymbolStructField:   {},
+	SymbolParamField:    {},
+	SymbolResultField:   {},
+	SymbolReceiverField: {},
+}
+
 func identNames(idents []*ast.Ident) []string {
 	iLen := len(idents)
 	if iLen == 0 {
@@ -25,6 +32,11 @@ func identNames(idents []*ast.Ident) []string {
 
 func isExportedIdent(name string) bool {
 	return strings.ToUpper(name[:1]) == name[:1]
+}
+
+func isFieldSymbolType(st SymbolType) bool {
+	_, ok := fieldSTMap[st]
+	return ok
 }
 
 func mkComment(s string) string {
