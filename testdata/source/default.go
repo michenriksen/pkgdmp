@@ -78,7 +78,7 @@ func MyThirdFunction() MyFunctionType {
 
 // MyStruct is a struct with exported and unexported fields.
 type MyStruct struct {
-	ExportedField                      int    // exported field.
+	ExportedField                      int    `json:"exported,omitempty" xml:"exported"` // exported field.
 	unexportedField                    string // unexported field.
 	unexportedField1, unexportedField2 int    // unexported shorthand fields.
 }

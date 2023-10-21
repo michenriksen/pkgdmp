@@ -40,7 +40,7 @@ type MyLogLevel int
 
 // MyStruct is a struct with exported and unexported fields.
 type MyStruct struct {
-	ExportedField int // exported field.
+	ExportedField int `json:"exported,omitempty" xml:"exported"` // exported field.
 }
 
 // MyMethod is a method associated with MyStruct.

@@ -29,7 +29,7 @@ type MyInterface interface {
 type MyLogLevel int
 
 type MyStruct struct {
-	ExportedField                      int
+	ExportedField                      int `json:"exported,omitempty" xml:"exported"`
 	unexportedField                    string
 	unexportedField1, unexportedField2 int
 }
