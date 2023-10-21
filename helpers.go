@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
+	"regexp"
 	"strings"
 )
 
@@ -14,6 +15,8 @@ var fieldSTMap = map[SymbolType]struct{}{
 	SymbolResultField:   {},
 	SymbolReceiverField: {},
 }
+
+var fieldTagRegexp = regexp.MustCompile(`(\w+):"(.*?)"`)
 
 func identNames(idents []*ast.Ident) []string {
 	iLen := len(idents)
@@ -110,4 +113,25 @@ func printNodes(nodes any) string {
 	printer.Fprint(&b, fset, nodes)
 
 	return strings.TrimSpace(b.String())
+}
+
+func parseFieldTags(s string) [][]string {
+	s = strings.Trim(s, "`")
+
+	matches := fieldTagRegexp.FindAllStringSubmatch(s, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	tags := make([][]string, 0, len(matches))
+
+	for _, m := range matches {
+		name := m[1]
+		values := strings.Split(m[2], ",")
+		tag := append([]string{name}, values...)
+
+		tags = append(tags, tag)
+	}
+
+	return tags
 }

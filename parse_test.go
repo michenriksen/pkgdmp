@@ -129,6 +129,15 @@ func TestParser_Package(t *testing.T) {
 			},
 		},
 		{
+			name: "only structs and exclude tags",
+			opts: []pkgdmp.ParserOption{
+				pkgdmp.WithSymbolFilters(
+					pkgdmp.FilterSymbolTypes(pkgdmp.Include, pkgdmp.SymbolStructType),
+				),
+				pkgdmp.WithNoTags(),
+			},
+		},
+		{
 			name: "exclude func types",
 			opts: []pkgdmp.ParserOption{
 				pkgdmp.WithSymbolFilters(

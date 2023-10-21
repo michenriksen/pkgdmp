@@ -65,6 +65,7 @@ type Config struct {
 	Exclude         string
 	Dirs            []string `env:"skip"`
 	NoDocs          bool
+	NoTags          bool
 	NoHighlight     bool
 	FullDocs        bool
 	Unexported      bool
@@ -167,6 +168,10 @@ func ParserOptsFromCfg(cfg *Config) ([]pkgdmp.ParserOption, error) {
 		opts = append(opts, pkgdmp.WithNoDocs())
 	}
 
+	if cfg.NoTags {
+		opts = append(opts, pkgdmp.WithNoTags())
+	}
+
 	filters, err := filtersFromCfg(cfg)
 	if err != nil {
 		return nil, err
@@ -255,6 +260,9 @@ func initFlagSet(cfg *Config, output io.Writer) {
 	)
 	flagSet.BoolVar(&cfg.NoDocs, "no-docs", false,
 		flagDescf("NoDocs", "exclude doc comments"),
+	)
+	flagSet.BoolVar(&cfg.NoTags, "no-tags", false,
+		flagDescf("NoTags", "exclude struct field tags"),
 	)
 	flagSet.BoolVar(&cfg.FullDocs, "full-docs", false,
 		flagDescf("FullDocs", "include full doc comments instead of synopsis"),

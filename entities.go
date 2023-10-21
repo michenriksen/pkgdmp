@@ -311,10 +311,11 @@ func (td TypeDef) String() string {
 
 // Field represents a function parameter, result, or struct field.
 type Field struct {
-	Type       string   `json:"type"`
-	Doc        string   `json:"doc,omitempty"`
-	Comment    string   `json:"comment,omitempty"`
-	Names      []string `json:"names,omitempty"`
+	Type       string     `json:"type"`
+	Doc        string     `json:"doc,omitempty"`
+	Comment    string     `json:"comment,omitempty"`
+	Names      []string   `json:"names,omitempty"`
+	Tags       []FieldTag `json:"tags,omitempty"`
 	symbolType SymbolType
 }
 
@@ -346,6 +347,20 @@ func (sf Field) Print(w io.Writer) {
 
 	fmt.Fprintf(w, "%s %s", strings.Join(sf.Names, ", "), sf.Type)
 
+	if sf.symbolType == SymbolStructField && len(sf.Tags) != 0 {
+		fmt.Fprint(w, " `")
+
+		for i, t := range sf.Tags {
+			t.Print(w)
+
+			if i != len(sf.Tags)-1 {
+				fmt.Fprint(w, " ")
+			}
+		}
+
+		fmt.Fprint(w, "`")
+	}
+
 	if sf.Comment != "" {
 		fmt.Fprintf(w, " // %s", sf.Comment)
 	}
@@ -356,6 +371,26 @@ func (sf Field) String() string {
 	var b strings.Builder
 
 	sf.Print(&b)
+
+	return b.String()
+}
+
+// FieldTag represents a struct field tag.
+type FieldTag struct {
+	Name   string
+	Values []string
+}
+
+// Print writes the unformatted field tag code fragment to writer.
+func (ft FieldTag) Print(w io.Writer) {
+	fmt.Fprintf(w, `%s:"%s"`, ft.Name, strings.Join(ft.Values, ","))
+}
+
+// String returns the unformatted field tag code fragment.
+func (ft FieldTag) String() string {
+	var b strings.Builder
+
+	ft.Print(&b)
 
 	return b.String()
 }

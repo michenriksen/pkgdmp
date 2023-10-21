@@ -31,6 +31,7 @@ type Parser struct {
 	filters  []SymbolFilter
 	fullDocs bool
 	noDocs   bool
+	noTags   bool
 }
 
 // NewParser returns a parser configured with options.
@@ -330,7 +331,26 @@ func (p *Parser) parseField(af *ast.Field, st SymbolType) Field {
 		f.Comment = p.mkDoc(af.Comment.Text())
 	}
 
+	if !p.noTags && af.Tag != nil {
+		f.Tags = p.parseFieldTags(af.Tag)
+	}
+
 	return f
+}
+
+func (*Parser) parseFieldTags(aft *ast.BasicLit) []FieldTag {
+	parsed := parseFieldTags(aft.Value)
+	if len(parsed) == 0 {
+		return nil
+	}
+
+	tags := make([]FieldTag, 0, len(parsed))
+
+	for _, p := range parsed {
+		tags = append(tags, FieldTag{Name: p[0], Values: p[1:]})
+	}
+
+	return tags
 }
 
 func (p *Parser) includeSymbol(s Symbol) bool {
@@ -391,6 +411,22 @@ func (*noDocs) String() string {
 
 func (*noDocs) apply(p *Parser) error {
 	p.noDocs = true
+	return nil
+}
+
+// WithNoDocs configures a [Parser] to not include any struct field tags.
+func WithNoTags() ParserOption {
+	return &noTags{}
+}
+
+type noTags struct{}
+
+func (*noTags) String() string {
+	return "noTags"
+}
+
+func (*noTags) apply(p *Parser) error {
+	p.noTags = true
 	return nil
 }
 
