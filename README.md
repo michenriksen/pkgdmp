@@ -27,8 +27,7 @@
 
 ```console
 user@example:~$ pkgdmp -help
-
-pkgdmp v0.2.0
+pkgdmp v0.3.0
 
 USAGE:
 
@@ -52,6 +51,8 @@ FLAGS:
         exclude doc comments [$PKGDMP_NO_DOCS]
   -no-env
         skip loading of configuration from 'PKGDMP_*' environment variables
+  -no-tags
+        exclude struct field tags [$PKGDMP_NO_TAGS]
   -only string
         comma-separated list of symbol types to include [$PKGDMP_ONLY]
   -only-packages string
@@ -65,7 +66,7 @@ FLAGS:
 
 SYMBOL TYPES:
 
-  arrayType, chanType, const, func, funcType, identType, interface, mapType, struct
+  arrayType, chanType, const, func, funcType, identType, interface, mapType, method, struct
 
 ```
 
