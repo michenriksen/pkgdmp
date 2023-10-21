@@ -415,16 +415,6 @@ func strToSymbolTypes(list string) ([]pkgdmp.SymbolType, error) {
 	return res, nil
 }
 
-func strToSlice(list string) []string {
-	ss := strings.Split(list, ",")
-
-	for i, s := range ss {
-		ss[i] = strings.TrimSpace(s)
-	}
-
-	return ss
-}
-
 func supportedSymbolTypes() []string {
 	res := make([]string, 0, len(symbolTypeMap))
 
