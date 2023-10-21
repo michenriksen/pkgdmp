@@ -45,6 +45,12 @@ type MyStruct struct {
 	unexportedField1, unexportedField2 int    // unexported shorthand fields.
 }
 
+// MyMethod is a method associated with MyStruct.
+func (s MyStruct) MyMethod()
+
+// myUnexportedMethod is an example unexported method.
+func (s MyStruct) myUnexportedMethod(a, b string) string
+
 // myUnexportedInterface is an unexported interface.
 type myUnexportedInterface interface {
 	AnotherMethod(string, int, MyFunctionType) (n int, err error)
