@@ -21,12 +21,13 @@ var symbolTypes = []pkgdmp.SymbolType{
 	pkgdmp.SymbolArrayType,
 	pkgdmp.SymbolFunc,
 	pkgdmp.SymbolMethod,
-	pkgdmp.SymbolStructField,
 }
 
 func TestFilterUnexported(t *testing.T) {
 	exported := newSymbol(t, "MyExported", randSymbolType(t))
 	unexported := newSymbol(t, "myUnexported", randSymbolType(t))
+	exportedSField := newSymbol(t, "MyExported", pkgdmp.SymbolStructField)
+	unexportedSField := newSymbol(t, "myUnexported", pkgdmp.SymbolStructField)
 
 	tt := []struct {
 		s      pkgdmp.Symbol
@@ -37,6 +38,10 @@ func TestFilterUnexported(t *testing.T) {
 		{exported, pkgdmp.Exclude, true},
 		{unexported, pkgdmp.Include, true},
 		{unexported, pkgdmp.Exclude, false},
+		{exportedSField, pkgdmp.Include, true},
+		{exportedSField, pkgdmp.Exclude, true},
+		{unexportedSField, pkgdmp.Include, true},
+		{unexportedSField, pkgdmp.Exclude, false},
 	}
 
 	for _, tc := range tt {
