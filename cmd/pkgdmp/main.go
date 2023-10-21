@@ -42,6 +42,10 @@ func main() {
 	parsed := make([]*pkgdmp.Package, 0, len(unparsed))
 
 	for _, uPkg := range unparsed {
+		if !cfg.IncludePackage(uPkg.Name) {
+			continue
+		}
+
 		pkg, err := pkgParser.Package(doc.New(uPkg, "", doc.AllDecls))
 		if err != nil {
 			log.Fatal(err)

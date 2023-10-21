@@ -3,9 +3,11 @@ package cli_test
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/michenriksen/pkgdmp/internal/cli"
@@ -74,6 +76,45 @@ func TestParseFlags(t *testing.T) {
 
 				t.Errorf("expected error %v, but got: %v", tc.wantErr, err)
 			}
+		})
+	}
+}
+
+func TestParseFlags_PackageFiltering(t *testing.T) {
+	tt := []struct {
+		args []string
+		pkg  string
+		want bool
+	}{
+		{nil, "mypackage", true},
+		{[]string{"-only-packages", "mypackage"}, "mypackage", true},
+		{[]string{"-only-packages", "otherpackage,mypackage"}, "mypackage", true},
+		{[]string{"-only-packages", "otherpackage"}, "mypackage", false},
+		{[]string{"-exclude-packages", "otherpackage"}, "mypackage", true},
+		{[]string{"-exclude-packages", "mypackage"}, "mypackage", false},
+		{[]string{"-exclude-packages", "otherpackage,mypackage"}, "mypackage", false},
+	}
+
+	for _, tc := range tt {
+		name := fmt.Sprintf("returns %t with args %s", tc.want, strings.Join(tc.args, " "))
+
+		t.Run(name, func(t *testing.T) {
+			args := append(tc.args, "directory")
+
+			cfg, exitCode, err := cli.ParseFlags(args, io.Discard)
+			if err != nil {
+				t.Fatalf("did not expect error, but got: %v", err)
+			}
+
+			if exitCode != 0 {
+				t.Fatalf("expected exit code 0, but got %d", exitCode)
+			}
+
+			if cfg.IncludePackage(tc.pkg) == tc.want {
+				return
+			}
+
+			t.Fatalf("expected cfg.IncludePackage(%q) to return %t", tc.pkg, tc.want)
 		})
 	}
 }

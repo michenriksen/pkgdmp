@@ -208,49 +208,6 @@ func (f *filterMatchingIdents) String() string {
 	return fmt.Sprintf("filterMatchingIdents(action=%s,pattern=%s)", f.action, f.pattern)
 }
 
-// FilterPackages creates a filter function that determines whether to include
-// or exclude packages matching provided names.
-func FilterPackages(action FilterAction, names ...string) SymbolFilter {
-	pkgMap := make(map[string]struct{}, len(names))
-
-	for _, n := range names {
-		pkgMap[n] = struct{}{}
-	}
-
-	return &filterPackages{pkgMap: pkgMap, action: action}
-}
-
-type filterPackages struct {
-	pkgMap map[string]struct{}
-	action FilterAction
-}
-
-func (f *filterPackages) Include(s Symbol) bool {
-	if s.SymbolType() != SymbolPackage {
-		return true
-	}
-
-	_, ok := f.pkgMap[s.Ident()]
-
-	if f.action == Include {
-		return ok
-	}
-
-	return !ok
-}
-
-func (f *filterPackages) String() string {
-	names := make([]string, 0, len(f.pkgMap))
-
-	for n := range f.pkgMap {
-		names = append(names, n)
-	}
-
-	sort.Strings(names)
-
-	return fmt.Sprintf("filterPackages(action=%s,names=%s)", f.action, strings.Join(names, ","))
-}
-
 func isUnfilterable(s Symbol) bool {
 	if _, ok := unfilterableMap[s.SymbolType()]; ok {
 		return true

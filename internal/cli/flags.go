@@ -54,21 +54,40 @@ var flagSet *flag.FlagSet
 
 // Config represents CLI configuration from flags.
 type Config struct {
-	Matching        string
-	ExcludeMatching string
-	Only            string
-	Exclude         string
-	OnlyPackages    string
+	onlyPackages    map[string]struct{}
+	excludePackages map[string]struct{}
 	ExcludePackages string
+	Only            string
+	ExcludeMatching string
 	Theme           string
+	Matching        string
+	OnlyPackages    string
+	Exclude         string
 	Dirs            []string `env:"skip"`
 	NoDocs          bool
-	JSON            bool
-	NoEnv           bool `env:"skip"`
 	NoHighlight     bool
 	FullDocs        bool
 	Unexported      bool
 	Version         bool `env:"skip"`
+	NoEnv           bool `env:"skip"`
+	JSON            bool
+}
+
+// IncludePackage returns true if package with provided name should be included
+// in the report according to configuration, or false otherwise.
+func (c *Config) IncludePackage(name string) bool {
+	if len(c.onlyPackages) != 0 {
+		_, ok := c.onlyPackages[name]
+		return ok
+	}
+
+	if len(c.excludePackages) != 0 {
+		if _, ok := c.excludePackages[name]; ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 // ParseFlags parses command line arguments as flags and returns a CLI
@@ -104,6 +123,34 @@ func ParseFlags(args []string, output io.Writer) (*Config, int, error) {
 	cfg.Dirs = flagSet.Args()
 
 	envConfig(cfg)
+
+	if cfg.OnlyPackages != "" {
+		names := strings.Split(cfg.OnlyPackages, ",")
+		cfg.onlyPackages = make(map[string]struct{}, len(names))
+
+		for _, name := range names {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+
+			cfg.onlyPackages[name] = struct{}{}
+		}
+	}
+
+	if cfg.ExcludePackages != "" {
+		names := strings.Split(cfg.ExcludePackages, ",")
+		cfg.excludePackages = make(map[string]struct{}, len(names))
+
+		for _, name := range names {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+
+			cfg.excludePackages[name] = struct{}{}
+		}
+	}
 
 	return cfg, 0, nil
 }
@@ -173,18 +220,6 @@ func filtersFromCfg(cfg *Config) ([]pkgdmp.SymbolFilter, error) {
 		}
 
 		filters = append(filters, pkgdmp.FilterMatchingIdents(pkgdmp.Exclude, p))
-	}
-
-	if cfg.ExcludePackages != "" {
-		names := strToSlice(cfg.ExcludePackages)
-
-		filters = append(filters, pkgdmp.FilterPackages(pkgdmp.Exclude, names...))
-	}
-
-	if cfg.OnlyPackages != "" {
-		names := strToSlice(cfg.ExcludePackages)
-
-		filters = append(filters, pkgdmp.FilterPackages(pkgdmp.Include, names...))
 	}
 
 	return filters, nil

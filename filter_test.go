@@ -179,46 +179,6 @@ func TestFilterMatchingIdents(t *testing.T) {
 	}
 }
 
-func TestFilterPackages(t *testing.T) {
-	pkg := newSymbol(t, "mypackage", pkgdmp.SymbolPackage)
-
-	tt := []struct {
-		s      pkgdmp.Symbol
-		names  []string
-		action pkgdmp.FilterAction
-		want   bool
-	}{
-		{pkg, []string{"otherpackage", pkg.Ident()}, pkgdmp.Include, true},
-		{pkg, []string{pkg.Ident(), "otherpackage"}, pkgdmp.Exclude, false},
-		{pkg, []string{"somepackage", "otherpackage"}, pkgdmp.Include, false},
-		{pkg, []string{"somepackage", "otherpackage"}, pkgdmp.Exclude, true},
-		{newSymbol(t, "test", pkgdmp.SymbolStructType), []string{"test"}, pkgdmp.Exclude, true},
-		{newSymbol(t, "test", pkgdmp.SymbolFunc), []string{"mypackage"}, pkgdmp.Include, true},
-	}
-
-	for _, tc := range tt {
-		tc := tc
-
-		name := fmt.Sprintf("returns %t for %s with action %s and names %s",
-			tc.want, tc.s, tc.action, strings.Join(tc.names, ","),
-		)
-
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			f := pkgdmp.FilterPackages(tc.action, tc.names...)
-
-			if f.Include(tc.s) == tc.want {
-				return
-			}
-
-			t.Errorf("expected FilterPackages(%v, %s) to return %t for %s",
-				tc.action, strings.Join(tc.names, ", "), tc.want, tc.s,
-			)
-		})
-	}
-}
-
 type stubSymbol struct {
 	ident string
 	st    pkgdmp.SymbolType
