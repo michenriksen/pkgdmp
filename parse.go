@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/doc"
 	"go/token"
-	"hash/fnv"
 	"strings"
 )
 
@@ -19,13 +18,10 @@ var typeNames = map[token.Token]string{
 
 // ParserOption configures a [Parser].
 type ParserOption interface {
-	// Fingerprint should return a 64-bit FNV-1a hash of the option and its
-	// configuration.
+	// String should return a string representation of the option.
 	//
-	// This method is intended for testing purposes.
-	//
-	// See: https://pkg.go.dev/hash/fnv
-	Fingerprint() uint64
+	// This method is mainly intended for testing purposes.
+	String() string
 
 	apply(*Parser) error
 }
@@ -361,17 +357,13 @@ func WithFullDocs() ParserOption {
 
 type fullDocs struct{}
 
+func (*fullDocs) String() string {
+	return "fullDocs"
+}
+
 func (*fullDocs) apply(p *Parser) error {
 	p.fullDocs = true
 	return nil
-}
-
-func (*fullDocs) Fingerprint() uint64 {
-	h := fnv.New64a()
-
-	h.Sum([]byte("fullDocs"))
-
-	return h.Sum64()
 }
 
 // WithNoDocs configures a [Parser] to not include any doc comments for symbols.
@@ -381,44 +373,36 @@ func WithNoDocs() ParserOption {
 
 type noDocs struct{}
 
+func (*noDocs) String() string {
+	return "noDocs"
+}
+
 func (*noDocs) apply(p *Parser) error {
 	p.noDocs = true
 	return nil
 }
 
-func (*noDocs) Fingerprint() uint64 {
-	h := fnv.New64a()
-
-	h.Sum([]byte("noDocs"))
-
-	return h.Sum64()
-}
-
 // WithSymbolFilters configures a [Parser] to filter package symbols with
 // provided filter functions.
 func WithSymbolFilters(filters ...SymbolFilter) ParserOption {
-	return &symbolFilters{f: filters}
+	return &symbolFilters{filters: filters}
 }
 
 type symbolFilters struct {
-	f []SymbolFilter
+	filters []SymbolFilter
+}
+
+func (sf *symbolFilters) String() string {
+	filters := make([]string, 0, len(sf.filters))
+
+	for _, f := range sf.filters {
+		filters = append(filters, f.String())
+	}
+
+	return fmt.Sprintf("symbolFilters(filters=%s)", strings.Join(filters, ","))
 }
 
 func (sf *symbolFilters) apply(p *Parser) error {
-	p.filters = sf.f
+	p.filters = sf.filters
 	return nil
-}
-
-func (sf *symbolFilters) Fingerprint() uint64 {
-	h := fnv.New64a()
-
-	h.Sum([]byte("symbolFilters"))
-
-	sum := h.Sum64()
-
-	for _, f := range sf.f {
-		sum += f.Fingerprint()
-	}
-
-	return sum
 }

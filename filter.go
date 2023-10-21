@@ -1,7 +1,7 @@
 package pkgdmp
 
 import (
-	"hash/fnv"
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -95,13 +95,10 @@ type SymbolFilter interface {
 	// the filter's logic and configuration.
 	Include(Symbol) bool
 
-	// Fingerprint should return a 64-bit FNV-1a hash of the filter and its
-	// configuration.
+	// String should return a string representation of the filter.
 	//
-	// This method is intended for testing purposes.
-	//
-	// See: https://pkg.go.dev/hash/fnv
-	Fingerprint() uint64
+	// This method is mainly intended for testing purposes.
+	String() string
 }
 
 // FilterUnexported creates a filter that determines whether to include or
@@ -122,12 +119,8 @@ func (f *filterUnexported) Include(s Symbol) bool {
 	return f.action == Include || s.IsExported()
 }
 
-func (f *filterUnexported) Fingerprint() uint64 {
-	h := fnv.New64a()
-	h.Write([]byte("filterUnexported"))
-	h.Sum([]byte(f.action.String()))
-
-	return h.Sum64()
+func (f *filterUnexported) String() string {
+	return fmt.Sprintf("filterUnexported(action=%s)", f.action)
 }
 
 // FilterSymbolTypes creates a filter function that determines whether to
@@ -164,11 +157,7 @@ func (f *filterSymbolTypes) Include(s Symbol) bool {
 	return !ok
 }
 
-func (f *filterSymbolTypes) Fingerprint() uint64 {
-	h := fnv.New64a()
-	h.Write([]byte("filterSymbolTypes"))
-	h.Write([]byte(f.action.String()))
-
+func (f *filterSymbolTypes) String() string {
 	sts := make([]string, 0, len(f.stMap))
 
 	for st := range f.stMap {
@@ -177,20 +166,18 @@ func (f *filterSymbolTypes) Fingerprint() uint64 {
 
 	sort.Strings(sts)
 
-	h.Sum([]byte(strings.Join(sts, "")))
-
-	return h.Sum64()
+	return fmt.Sprintf("filterSymbolTypes(action=%s,symbolTypes=%s)", f.action, strings.Join(sts, ","))
 }
 
 // FilterSymbolTypes creates a filter function that determines whether to
 // include or exclude symbols with matching idents.
 func FilterMatchingIdents(action FilterAction, p *regexp.Regexp) SymbolFilter {
-	return &filterMatchingIdents{action: action, p: p}
+	return &filterMatchingIdents{action: action, pattern: p}
 }
 
 type filterMatchingIdents struct {
-	p      *regexp.Regexp
-	action FilterAction
+	pattern *regexp.Regexp
+	action  FilterAction
 }
 
 func (f *filterMatchingIdents) Include(s Symbol) bool {
@@ -198,7 +185,7 @@ func (f *filterMatchingIdents) Include(s Symbol) bool {
 		return true
 	}
 
-	match := f.p.MatchString(s.Ident())
+	match := f.pattern.MatchString(s.Ident())
 
 	if f.action == Include {
 		return match
@@ -207,14 +194,8 @@ func (f *filterMatchingIdents) Include(s Symbol) bool {
 	return !match
 }
 
-func (f *filterMatchingIdents) Fingerprint() uint64 {
-	h := fnv.New64a()
-
-	h.Write([]byte("filterMatchingIdents"))
-	h.Write([]byte(f.action.String()))
-	h.Sum([]byte(f.p.String()))
-
-	return h.Sum64()
+func (f *filterMatchingIdents) String() string {
+	return fmt.Sprintf("filterMatchingIdents(action=%s,pattern=%s)", f.action, f.pattern)
 }
 
 // FilterPackages creates a filter function that determines whether to include
@@ -248,12 +229,7 @@ func (f *filterPackages) Include(s Symbol) bool {
 	return !ok
 }
 
-func (f *filterPackages) Fingerprint() uint64 {
-	h := fnv.New64a()
-
-	h.Write([]byte("filterPackages"))
-	h.Write([]byte(f.action.String()))
-
+func (f *filterPackages) String() string {
 	names := make([]string, 0, len(f.pkgMap))
 
 	for n := range f.pkgMap {
@@ -262,9 +238,7 @@ func (f *filterPackages) Fingerprint() uint64 {
 
 	sort.Strings(names)
 
-	h.Sum([]byte(strings.Join(names, "")))
-
-	return h.Sum64()
+	return fmt.Sprintf("filterPackages(action=%s,names=%s)", f.action, strings.Join(names, ","))
 }
 
 func isUnfilterable(s Symbol) bool {

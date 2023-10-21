@@ -80,25 +80,35 @@ func TestParseFlags(t *testing.T) {
 
 func TestParserOptsFromCfg(t *testing.T) {
 	tt := []struct {
-		name                string
-		cfg                 *cli.Config
-		wantOptFingerprints []uint64
-		wantErrRegexp       *regexp.Regexp
+		name          string
+		cfg           *cli.Config
+		wantOpts      []string
+		wantErrRegexp *regexp.Regexp
 	}{
 		{
-			name:                "default config",
-			cfg:                 &cli.Config{},
-			wantOptFingerprints: []uint64{2070688686324183492},
+			name: "default config",
+			cfg:  &cli.Config{},
+			wantOpts: []string{
+				"symbolFilters(filters=filterUnexported(action=Exclude))",
+			},
 		},
 		{
-			name:                "full docs and exclude interfaces",
-			cfg:                 &cli.Config{FullDocs: true, Exclude: "interface"},
-			wantOptFingerprints: []uint64{14695981039346656037, 4573527031645899146},
+			name: "full docs and exclude interfaces",
+			cfg:  &cli.Config{FullDocs: true, Exclude: "interface"},
+			wantOpts: []string{
+				"fullDocs",
+				"symbolFilters(filters=filterUnexported(action=Exclude),filterSymbolTypes(action=Exclude,symbolTypes=SymbolInterfaceType))",
+			},
 		},
 		{
-			name:                "match and exclude patterns",
-			cfg:                 &cli.Config{Matching: `^FooBa(r|z)`, ExcludeMatching: `(Hello|Hi)World`},
-			wantOptFingerprints: []uint64{14104148152248147676},
+			name: "match and exclude patterns",
+			cfg:  &cli.Config{Matching: `^FooBa(r|z)`, ExcludeMatching: `(Hello|Hi)World`},
+			wantOpts: []string{
+				"symbolFilters(filters=" +
+					"filterUnexported(action=Exclude)," +
+					"filterMatchingIdents(action=Include,pattern=^FooBa(r|z))," +
+					"filterMatchingIdents(action=Exclude,pattern=(Hello|Hi)World))",
+			},
 		},
 		{
 			name:          "invalid match regexp",
@@ -116,20 +126,20 @@ func TestParserOptsFromCfg(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			opts, err := cli.ParserOptsFromCfg(tc.cfg)
 
-			if fpLen := len(tc.wantOptFingerprints); fpLen != 0 {
+			if wOptsLen := len(tc.wantOpts); wOptsLen != 0 {
 				optsLen := len(opts)
 
-				if optsLen != fpLen {
-					t.Fatalf("expected option length to be %d, but got %d", fpLen, optsLen)
+				if optsLen != wOptsLen {
+					t.Fatalf("expected option length to be %d, but got %d", wOptsLen, optsLen)
 				}
 
 				for i, opt := range opts {
-					wantFp := tc.wantOptFingerprints[i]
-					actualFp := opt.Fingerprint()
+					wantOpt := tc.wantOpts[i]
+					actualOpt := opt.String()
 
-					if actualFp != wantFp {
-						t.Fatalf("expected option at index %d to have fingerprint %d, but has %d",
-							i, wantFp, actualFp,
+					if actualOpt != wantOpt {
+						t.Fatalf("expected option at index %d to be:\n\n%s\n\nbut is:\n\n%s\n\n",
+							i, wantOpt, actualOpt,
 						)
 					}
 				}

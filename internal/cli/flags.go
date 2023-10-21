@@ -360,17 +360,20 @@ func usage() {
 
 func strToSymbolTypes(list string) ([]pkgdmp.SymbolType, error) {
 	ss := strings.Split(list, ",")
-	res := make([]pkgdmp.SymbolType, len(ss))
+	res := make([]pkgdmp.SymbolType, 0, len(ss))
 
-	for i, s := range ss {
+	for _, s := range ss {
 		s = strings.TrimSpace(strings.ToLower(s))
+		if s == "" {
+			continue
+		}
 
 		st, ok := symbolTypeMap[s]
 		if !ok {
 			return nil, fmt.Errorf("unsupported symbol type string: %q", s)
 		}
 
-		res[i] = st
+		res = append(res, st)
 	}
 
 	return res, nil
